@@ -23,14 +23,14 @@
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    .app { min-height: 100vh; padding-bottom: calc(76px + var(--safe-b)); }
+    .app { min-height: 100vh; padding-bottom: calc(100px + var(--safe-b)); }
     .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(10px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .topbar h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
     .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 6px 0 calc(6px + var(--safe-b)); }
     .tabbar button { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .tabbar button.on { color: var(--navy); font-weight: 600; }
     .tabbar .ico { font-size: 20px; line-height: 1; }
-    .fab { position: fixed; right: 18px; bottom: calc(84px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
+    .fab { position: fixed; right: 18px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 12px 10px; }
     .row { display: flex; align-items: center; gap: 10px; }
     .grow { flex: 1; min-width: 0; }
@@ -55,6 +55,7 @@
     .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 16px; }
     .field textarea { min-height: 72px; resize: vertical; }
     .field.unsure input, .field.unsure select { border-color: var(--amber); background: var(--amber-soft); }
+    .field.unsure { background: var(--amber-soft); margin-left: -8px; margin-right: -8px; padding: 6px 8px; border-radius: 10px; }
     .unsure-note { font-size: 12px; color: var(--amber); margin-top: 4px; }
     .section-h { padding: 14px 16px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; }
     .empty { text-align: center; color: var(--muted); padding: 60px 24px; }
@@ -96,7 +97,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-05c-warranty-tag-only';
+    const BUILD_VERSION = '2026-09-05d-form-and-filters';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -149,6 +150,17 @@
     const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
     const fmtDate = (iso) => { if (!iso) return ''; const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
     const fmtMoney = (n, cur) => { if (n === null || n === undefined || n === '' || isNaN(+n)) return ''; const v = (+n).toFixed(2); return (cur === 'AUD' || !cur ? '$' : cur + ' ') + v; };
+    const parseDate = (txt) => {
+      const t = String(txt || '').trim(); if (!t) return null;
+      let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+      m = t.match(/^(\d{1,2})[\/.\-\s](\d{1,2})(?:[\/.\-\s](\d{2,4}))?$/);
+      if (!m) { const d = t.match(/^(\d{2})(\d{2})(\d{4})$/); if (d) m = [null, d[1], d[2], d[3]]; else { const e = t.match(/^(\d{2})(\d{2})(\d{2})$/); if (e) m = [null, e[1], e[2], e[3]]; } }
+      if (!m) return null;
+      let y = m[3] ? +m[3] : new Date().getFullYear(); if (y < 100) y += 2000;
+      const mo = +m[2], d = +m[1]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+      return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    };
+    const gstOf = (total) => { const t = +total; return isNaN(t) ? null : Math.round(t / 11 * 100) / 100; };
     const monthLabel = (iso) => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? 'Unknown date' : d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }); };
     const catColour = (cat, cats) => { const i = Math.max(0, cats.indexOf(cat)); return CATEGORY_COLOURS[i % CATEGORY_COLOURS.length]; };
 
@@ -532,8 +544,8 @@
     // ---------- Export / import helpers ----------
     const csvEscape = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const buildCSV = (receipts) => {
-      const rows = [['id', 'date', 'merchant', 'total', 'gst', 'currency', 'category', 'tags', 'items', 'comments', 'pages', 'needs_review']];
-      receipts.forEach(r => rows.push([r.id, r.date, r.merchant, r.total, r.gst, r.currency, r.category, (r.tags || []).join('; '), r.items, r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
+      const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'comments', 'pages', 'needs_review']];
+      receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
       return rows.map(r => r.map(csvEscape).join(',')).join('\n');
     };
     const buildExportZip = async (receipts, settings) => {
@@ -834,7 +846,7 @@
         const tags = data && Array.isArray(data.suggested_tags) ? data.suggested_tags.map(t => settings.tags.find(x => x.toLowerCase() === String(t).toLowerCase())).filter(Boolean) : [];
         setDraft({
           id: uid(), merchant: (data && data.merchant) || '', date: (data && data.date) || todayISO(), total: data && data.total !== null && data.total !== undefined ? data.total : '',
-          gst: data && data.gst !== null && data.gst !== undefined ? data.gst : '', currency: (data && data.currency) || settings.currency, category: cat || '',
+          gstIncluded: !!(data && data.gst > 0), currency: (data && data.currency) || settings.currency, category: cat || '',
           tags, comments: data && data.warranty_note ? `Warranty: ${data.warranty_note}` : '', items: (data && data.items_summary) || '',
           unsure, needsReview: unsure.length > 0, createdAt: new Date().toISOString()
         });
@@ -848,7 +860,7 @@
         pages.forEach(p => URL.revokeObjectURL(p.url));
         onSaved(full);
       };
-      const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gst: '', currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
+      const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gstIncluded: false, currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
       if (stage === 'choose') return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
@@ -895,22 +907,51 @@
     const var_red = () => '#B23A3A';
 
     // ---------- Receipt form (used for new and edit) ----------
+    function DateField({ value, onChange, placeholder }) {
+      const [text, setText] = useState(fmtDate(value));
+      useEffect(() => { setText(fmtDate(value)); }, [value]);
+      const pickRef = useRef(null);
+      const commit = () => { const t = text.trim(); if (!t) { onChange(''); return; } const iso = parseDate(t); if (iso) onChange(iso); else setText(fmtDate(value)); };
+      const openPicker = () => { const el = pickRef.current; if (!el) return; try { if (el.showPicker) el.showPicker(); else el.click(); } catch (_) { el.click(); } };
+      return (
+        <div className="row" style={{ position: 'relative', gap: 6 }}>
+          <input className="grow" inputMode="numeric" placeholder={placeholder || 'dd/mm/yyyy'} value={text} onChange={e => setText(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); e.target.blur(); } }} />
+          <button type="button" className="btn" style={{ padding: '10px 12px' }} onClick={openPicker} aria-label="Pick a date">📅</button>
+          <input ref={pickRef} type="date" value={value || ''} onChange={e => onChange(e.target.value)} tabIndex={-1} style={{ position: 'absolute', right: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+        </div>
+      );
+    }
+    function ChipPicker({ options, value, onChange, multi, onAdd, addLabel }) {
+      const [adding, setAdding] = useState(false); const [txt, setTxt] = useState('');
+      const selected = multi ? (value || []) : (value ? [value] : []);
+      const toggle = (o) => { if (multi) onChange(selected.includes(o) ? selected.filter(x => x !== o) : [...selected, o]); else onChange(value === o ? '' : o); };
+      const commit = () => { const t = txt.trim(); if (t) { onAdd(t); if (multi) onChange([...selected, t]); else onChange(t); } setTxt(''); setAdding(false); };
+      return (
+        <div className="chips">
+          {options.map(o => <button key={o} type="button" className={'chip btn' + (selected.includes(o) ? ' on' : '')} onClick={() => toggle(o)}>{multi ? '#' : ''}{o}</button>)}
+          {adding ? (
+            <span className="row" style={{ gap: 4 }}>
+              <input autoFocus style={{ padding: '4px 8px', borderRadius: 999, border: '1px solid var(--line)', width: 130, fontSize: 13 }} value={txt} onChange={e => setTxt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') setAdding(false); }} onBlur={commit} placeholder={addLabel} />
+            </span>
+          ) : <button type="button" className="chip btn" style={{ borderStyle: 'dashed' }} onClick={() => setAdding(true)}>+ New</button>}
+        </div>
+      );
+    }
     function ReceiptForm({ draft, pages, settings, setSettings, error, onSave, onCancel, onAddPage, onRemovePage, title, onDelete }) {
       const [r, setR] = useState(draft);
       const [saving, setSaving] = useState(false);
-      const [newCat, setNewCat] = useState(''); const [newTag, setNewTag] = useState('');
       const [armed, setArmed] = useState(false);
       const set = (k, v) => setR(x => ({ ...x, [k]: v, unsure: (x.unsure || []).filter(f => f !== k) }));
       const unsure = (k) => (r.unsure || []).includes(k);
-      const toggleTag = (t) => setR(x => ({ ...x, tags: x.tags.includes(t) ? x.tags.filter(y => y !== t) : [...x.tags, t] }));
-      const addCat = () => { const c = newCat.trim(); if (!c) return; if (!settings.categories.includes(c)) setSettings(s => ({ ...s, categories: [...s.categories, c] })); set('category', c); setNewCat(''); };
-      const addTag = () => { const t = newTag.trim(); if (!t) return; if (!settings.tags.includes(t)) setSettings(s => ({ ...s, tags: [...s.tags, t] })); setR(x => ({ ...x, tags: x.tags.includes(t) ? x.tags : [...x.tags, t] })); setNewTag(''); };
+      const addCat = (c) => { if (!settings.categories.includes(c)) setSettings(s => ({ ...s, categories: [...s.categories, c] })); };
+      const addTag = (t) => { if (!settings.tags.includes(t)) setSettings(s => ({ ...s, tags: [...s.tags, t] })); };
       const doSave = async () => {
         setSaving(true);
-        const out = { ...r, total: r.total === '' ? null : +r.total, gst: r.gst === '' ? null : +r.gst, needsReview: (r.unsure || []).length > 0 };
+        const out = { ...r, total: r.total === '' ? null : +r.total, gst: r.gstIncluded ? gstOf(r.total) : null, needsReview: (r.unsure || []).length > 0 };
         try { await onSave(out); } catch (e) { setSaving(false); alert('Save failed: ' + e.message); }
       };
       useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 3000); return () => clearTimeout(t); }, [armed]);
+      const Note = ({ k }) => unsure(k) ? <div className="unsure-note">Check this</div> : null;
       return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Back</button><h1 style={{ fontSize: 18 }}>{title}</h1><button className="btn primary" onClick={doSave} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
@@ -918,7 +959,7 @@
           {(r.unsure || []).length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Highlighted fields need a check. They were faint, missing, or a guess.</div>}
           <div className="card">
             <div className="pages">
-              {pages.map((p, i) => (
+              {pages.map((p) => (
                 <div key={p.id} style={{ position: 'relative' }}>
                   <img src={p.url} />
                   {onRemovePage && <button onClick={() => onRemovePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: '#B23A3A', color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>}
@@ -928,31 +969,29 @@
             </div>
           </div>
           <div className="card">
-            <div className={'field' + (unsure('merchant') ? ' unsure' : '')}><label>Merchant</label><input value={r.merchant} onChange={e => set('merchant', e.target.value)} placeholder="e.g. JB Hi-Fi" />{unsure('merchant') && <div className="unsure-note">Check this</div>}</div>
-            <div className="row">
-              <div className={'field grow' + (unsure('date') ? ' unsure' : '')}><label>Date</label><input type="date" value={r.date || ''} onChange={e => set('date', e.target.value)} />{unsure('date') && <div className="unsure-note">Check this</div>}</div>
-              <div className={'field grow' + (unsure('total') ? ' unsure' : '')}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" />{unsure('total') && <div className="unsure-note">Check this</div>}</div>
-            </div>
-            <div className="row">
-              <div className="field grow"><label>GST</label><input type="number" inputMode="decimal" step="0.01" value={r.gst} onChange={e => set('gst', e.target.value)} placeholder="optional" /></div>
-              <div className="field grow"><label>Currency</label><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} /></div>
-            </div>
-            <div className={'field' + (unsure('category') ? ' unsure' : '')}>
-              <label>Category (one per receipt)</label>
-              <select value={r.category} onChange={e => set('category', e.target.value)}>
-                <option value="">Uncategorised</option>
-                {settings.categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {unsure('category') && <div className="unsure-note">Check this</div>}
-              <div className="row" style={{ marginTop: 6 }}><input className="grow" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New category" value={newCat} onChange={e => setNewCat(e.target.value)} /><button className="btn" onClick={addCat}>Add</button></div>
+            <div className="field"><label>Item</label><input value={r.items || ''} onChange={e => set('items', e.target.value)} placeholder="What was bought" /></div>
+            <div className={'field' + (unsure('merchant') ? ' unsure' : '')}><label>Merchant</label><input value={r.merchant} onChange={e => set('merchant', e.target.value)} placeholder="e.g. JB Hi-Fi" /><Note k="merchant" /></div>
+            <div className="row" style={{ alignItems: 'flex-start' }}>
+              <div className={'field grow' + (unsure('date') ? ' unsure' : '')}><label>Date</label><DateField value={r.date} onChange={v => set('date', v)} /><Note k="date" /></div>
+              <div className={'field' + (unsure('total') ? ' unsure' : '')} style={{ width: 130 }}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" /><Note k="total" /></div>
             </div>
             <div className="field">
-              <label>Tags (a receipt can have several)</label>
-              <div className="chips">{settings.tags.map(t => <button key={t} className={'chip btn' + (r.tags.includes(t) ? ' on' : '')} onClick={() => toggleTag(t)}>#{t}</button>)}</div>
-              <div className="row" style={{ marginTop: 8 }}><input className="grow" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
+              <label className="row" style={{ justifyContent: 'space-between', textTransform: 'none', letterSpacing: 0, fontSize: 15, fontWeight: 500, color: 'var(--ink)', cursor: 'pointer' }}>
+                <span>GST included{r.gstIncluded && r.total !== '' ? <span className="muted small"> ({fmtMoney(gstOf(r.total), r.currency)})</span> : null}</span>
+                <input type="checkbox" checked={!!r.gstIncluded} onChange={e => set('gstIncluded', e.target.checked)} style={{ width: 22, height: 22 }} />
+              </label>
             </div>
-            <div className="field"><label>Items</label><input value={r.items || ''} onChange={e => set('items', e.target.value)} placeholder="What was bought" /></div>
+            <div className={'field' + (unsure('category') ? ' unsure' : '')}>
+              <label>Category (pick one)</label>
+              <ChipPicker options={settings.categories} value={r.category} onChange={v => set('category', v)} onAdd={addCat} addLabel="New category" />
+              <Note k="category" />
+            </div>
+            <div className="field">
+              <label>Tags (pick any)</label>
+              <ChipPicker multi options={settings.tags} value={r.tags} onChange={v => set('tags', v)} onAdd={addTag} addLabel="New tag" />
+            </div>
             <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
+            <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">Currency</span><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} style={{ width: 64, padding: '6px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
           </div>
           {onDelete && <div style={{ padding: '0 12px 20px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
         </div>
@@ -997,7 +1036,7 @@
       const removePage = async (id) => { await dbDel('images', id); const rest = (receipt.pages || []).filter(p => p !== id); const full = { ...receipt, pages: rest, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); };
       const addPageDone = async (blob) => { const id = uid(); await dbPut('images', { id, blob }); const full = { ...receipt, pages: [...(receipt.pages || []), id], updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setAdding(false); };
       if (adding) return <AddPageFlow settings={settings} setSettings={setSettings} onDone={addPageDone} onCancel={() => setAdding(false)} />;
-      if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gst: receipt.gst ?? '', tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
+      if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gstIncluded: !!receipt.gstIncluded, tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
       const col = catColour(receipt.category, settings.categories);
       return (
         <div className="sheet">
@@ -1005,16 +1044,19 @@
           <div className="topbar"><button className="btn" onClick={onClose}>Back</button><h1 style={{ fontSize: 18 }}>Receipt</h1><button className="btn" onClick={() => setEditing(true)}>Edit</button></div>
           {receipt.needsReview && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Some fields were unsure when this was read. Open Edit to confirm them.</div>}
           <div className="card">
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{receipt.merchant || 'Unknown merchant'}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 8px' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
-            <div className="chips">
+            <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div className="grow">
+                <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.25 }}>{receipt.items || receipt.merchant || 'Receipt'}</div>
+                <div className="muted" style={{ marginTop: 2 }}>{receipt.items ? (receipt.merchant || 'Unknown merchant') : ''}{receipt.items && receipt.merchant ? ' · ' : ''}{fmtDate(receipt.date) || 'No date'}</div>
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 700, whiteSpace: 'nowrap' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
+            </div>
+            <div className="chips" style={{ marginTop: 10 }}>
               {receipt.category && <span className="chip" style={{ background: col + '22', color: col }}>{receipt.category}</span>}
               {(receipt.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
             </div>
             <div className="kv" style={{ marginTop: 12 }}>
-              <span className="k">Date</span><span>{fmtDate(receipt.date) || 'Unknown'}</span>
-              {receipt.gst !== null && receipt.gst !== undefined && receipt.gst !== '' && <><span className="k">GST</span><span>{fmtMoney(receipt.gst, receipt.currency)}</span></>}
-              {receipt.items && <><span className="k">Items</span><span>{receipt.items}</span></>}
+              <span className="k">GST</span><span>{receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'}</span>
               {receipt.comments && <><span className="k">Comments</span><span style={{ whiteSpace: 'pre-wrap' }}>{receipt.comments}</span></>}
               <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
             </div>
@@ -1033,18 +1075,20 @@
       return <InAppCamera pageNo="+" onCapture={setCanvas} onPick={onPick} onCancel={onCancel} settings={settings} setSettings={setSettings} />;
     }
 
-    // ---------- List ----------
+    // ---------- List with filter and sort ----------
+    const EMPTY_FILTER = { sort: 'date_desc', from: '', to: '', cats: [], tags: [], review: false };
+    const filterCount = (f) => (f.from ? 1 : 0) + (f.to ? 1 : 0) + f.cats.length + f.tags.length + (f.review ? 1 : 0);
     function ReceiptRow({ r, cats, onOpen }) {
       const col = catColour(r.category, cats);
       return (
         <div className="card row" onClick={onOpen} style={{ cursor: 'pointer' }}>
           {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--muted)' }}>no image</div>}
           <div className="grow">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.merchant || 'Unknown merchant'}</div>
-              <div className="amt">{fmtMoney(r.total, r.currency)}</div>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ fontWeight: 600, lineHeight: 1.25 }}>{r.items || r.merchant || 'Receipt'}</div>
+              <div className="amt" style={{ whiteSpace: 'nowrap' }}>{fmtMoney(r.total, r.currency)}</div>
             </div>
-            <div className="small muted">{fmtDate(r.date)}{r.items ? ' · ' + r.items : ''}</div>
+            <div className="small muted">{r.items ? (r.merchant || 'Unknown merchant') + ' · ' : ''}{fmtDate(r.date)}</div>
             <div className="chips" style={{ marginTop: 5 }}>
               {r.category && <span className="chip" style={{ background: col + '22', color: col }}>{r.category}</span>}
               {(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
@@ -1057,83 +1101,82 @@
     }
     function ReceiptList({ receipts, settings, onOpen, filter, setFilter }) {
       const [q, setQ] = useState('');
+      const [panel, setPanel] = useState(false);
+      const f = { ...EMPTY_FILTER, ...filter };
       const shown = useMemo(() => {
         let list = receipts.slice();
-        if (filter.category) list = list.filter(r => r.category === filter.category);
-        if (filter.tag) list = list.filter(r => (r.tags || []).includes(filter.tag));
-        if (filter.review) list = list.filter(r => r.needsReview);
+        if (f.cats.length) list = list.filter(r => f.cats.includes(r.category));
+        if (f.tags.length) list = list.filter(r => f.tags.some(t => (r.tags || []).includes(t)));
+        if (f.review) list = list.filter(r => r.needsReview);
+        if (f.from) list = list.filter(r => (r.date || '') >= f.from);
+        if (f.to) list = list.filter(r => (r.date || '') <= f.to);
         if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
-        list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+        const byDate = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
+        if (f.sort === 'date_asc') list.sort(byDate);
+        else if (f.sort === 'amount_desc') list.sort((a, b) => (+b.total || 0) - (+a.total || 0));
+        else if (f.sort === 'amount_asc') list.sort((a, b) => (+a.total || 0) - (+b.total || 0));
+        else list.sort((a, b) => byDate(b, a));
         return list;
-      }, [receipts, filter, q]);
+      }, [receipts, f.cats, f.tags, f.review, f.from, f.to, f.sort, q]);
       const total = shown.reduce((s, r) => s + (+r.total || 0), 0);
-      const groups = useMemo(() => { const g = []; let cur = null; for (const r of shown) { const k = (r.date || '').slice(0, 7); if (!cur || cur.key !== k) { cur = { key: k, label: r.date ? monthLabel(r.date.slice(0, 7) + '-01') : 'Unknown date', items: [], sum: 0 }; g.push(cur); } cur.items.push(r); cur.sum += (+r.total || 0); } return g; }, [shown]);
+      const grouped = f.sort === 'date_desc' || f.sort === 'date_asc';
+      const groups = useMemo(() => { if (!grouped) return [{ key: 'all', label: null, items: shown, sum: total }]; const g = []; let cur = null; for (const r of shown) { const k = (r.date || '').slice(0, 7); if (!cur || cur.key !== k) { cur = { key: k, label: r.date ? monthLabel(r.date.slice(0, 7) + '-01') : 'Unknown date', items: [], sum: 0 }; g.push(cur); } cur.items.push(r); cur.sum += (+r.total || 0); } return g; }, [shown, grouped]);
       const reviewCount = receipts.filter(r => r.needsReview).length;
+      const n = filterCount(f);
+      const toggleIn = (key, v) => setFilter({ ...f, [key]: f[key].includes(v) ? f[key].filter(x => x !== v) : [...f[key], v] });
+      const sortLabel = { date_desc: 'Newest first', date_asc: 'Oldest first', amount_desc: 'Largest first', amount_asc: 'Smallest first' }[f.sort];
       return (
         <>
-          <div style={{ padding: '0 12px 6px' }}><input className="search" placeholder="Search merchant, items, comments" value={q} onChange={e => setQ(e.target.value)} /></div>
-          <div className="filters">
-            <span className="flabel">Show</span>
-            <button className={'chip btn' + (!filter.category && !filter.tag && !filter.review ? ' on' : '')} onClick={() => setFilter({})}>All</button>
-            {reviewCount > 0 && <button className={'chip btn' + (filter.review ? ' on' : '')} onClick={() => setFilter({ review: true })}>Needs check ({reviewCount})</button>}
+          <div className="row" style={{ padding: '0 12px 8px', gap: 8 }}>
+            <input className="search grow" placeholder="Search item, merchant, comments" value={q} onChange={e => setQ(e.target.value)} />
+            <button className={'btn' + (n || panel ? ' primary' : '')} style={{ whiteSpace: 'nowrap', padding: '10px 14px' }} onClick={() => setPanel(p => !p)}>Filter{n ? ` (${n})` : ''}</button>
           </div>
-          <div className="filters">
-            <span className="flabel">Category</span>
-            {settings.categories.map(c => <button key={c} className={'chip btn' + (filter.category === c ? ' on' : '')} onClick={() => setFilter(filter.category === c ? {} : { category: c })}>{c}</button>)}
-          </div>
-          <div className="filters">
-            <span className="flabel">Tag</span>
-            {settings.tags.map(t => <button key={t} className={'chip btn' + (filter.tag === t ? ' on' : '')} onClick={() => setFilter(filter.tag === t ? {} : { tag: t })}>#{t}</button>)}
-          </div>
-          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
-          {!shown.length && <div className="empty">{receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to photograph one.'}</div>}
+          {panel && (
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div className="flabel" style={{ marginBottom: 6 }}>Sort</div>
+                <div className="chips">
+                  {[['date_desc', 'Newest'], ['date_asc', 'Oldest'], ['amount_desc', 'Largest'], ['amount_asc', 'Smallest']].map(([k, l]) => <button key={k} className={'chip btn' + (f.sort === k ? ' on' : '')} onClick={() => setFilter({ ...f, sort: k })}>{l}</button>)}
+                </div>
+              </div>
+              <div>
+                <div className="flabel" style={{ marginBottom: 6 }}>Date range</div>
+                <div className="row" style={{ alignItems: 'flex-start' }}>
+                  <div className="grow"><DateField value={f.from} onChange={v => setFilter({ ...f, from: v })} placeholder="From" /></div>
+                  <div className="grow"><DateField value={f.to} onChange={v => setFilter({ ...f, to: v })} placeholder="To" /></div>
+                </div>
+              </div>
+              <div>
+                <div className="flabel" style={{ marginBottom: 6 }}>Category (any of)</div>
+                <div className="chips">{settings.categories.map(c => <button key={c} className={'chip btn' + (f.cats.includes(c) ? ' on' : '')} onClick={() => toggleIn('cats', c)}>{c}</button>)}</div>
+              </div>
+              <div>
+                <div className="flabel" style={{ marginBottom: 6 }}>Tag (any of)</div>
+                <div className="chips">{settings.tags.map(t => <button key={t} className={'chip btn' + (f.tags.includes(t) ? ' on' : '')} onClick={() => toggleIn('tags', t)}>#{t}</button>)}</div>
+              </div>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <button className={'chip btn' + (f.review ? ' on' : '')} onClick={() => setFilter({ ...f, review: !f.review })}>Needs check{reviewCount ? ` (${reviewCount})` : ''}</button>
+                <div className="row"><button className="btn" onClick={() => setFilter({ ...EMPTY_FILTER, sort: f.sort })} disabled={!n}>Clear</button><button className="btn primary" onClick={() => setPanel(false)}>Done</button></div>
+              </div>
+            </div>
+          )}
+          {!panel && n > 0 && (
+            <div className="filters">
+              {f.from && <button className="chip btn on" onClick={() => setFilter({ ...f, from: '' })}>from {fmtDate(f.from)} x</button>}
+              {f.to && <button className="chip btn on" onClick={() => setFilter({ ...f, to: '' })}>to {fmtDate(f.to)} x</button>}
+              {f.cats.map(c => <button key={c} className="chip btn on" onClick={() => toggleIn('cats', c)}>{c} x</button>)}
+              {f.tags.map(t => <button key={t} className="chip btn on" onClick={() => toggleIn('tags', t)}>#{t} x</button>)}
+              {f.review && <button className="chip btn on" onClick={() => setFilter({ ...f, review: false })}>Needs check x</button>}
+            </div>
+          )}
+          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'} · {sortLabel}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
+          {!shown.length && <div className="empty">{receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to add one.'}</div>}
           {groups.map(g => (
             <div key={g.key}>
-              <div className="section-h"><span>{g.label}</span><span className="amt">{fmtMoney(g.sum, settings.currency)}</span></div>
+              {g.label && <div className="section-h"><span>{g.label}</span><span className="amt">{fmtMoney(g.sum, settings.currency)}</span></div>}
               {g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} />)}
             </div>
           ))}
-        </>
-      );
-    }
-
-    // ---------- Sections (by tag) ----------
-    function Sections({ receipts, settings, setSettings, onOpen }) {
-      const [tag, setTag] = useState(null);
-      const [newTag, setNewTag] = useState('');
-      const [armed, setArmed] = useState(null);
-      useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 3000); return () => clearTimeout(t); }, [armed]);
-      const counts = {}; receipts.forEach(r => (r.tags || []).forEach(t => { counts[t] = counts[t] || { n: 0, sum: 0 }; counts[t].n++; counts[t].sum += (+r.total || 0); }));
-      const addTag = () => { const t = newTag.trim(); if (!t || settings.tags.includes(t)) return; setSettings(s => ({ ...s, tags: [...s.tags, t] })); setNewTag(''); };
-      const removeTag = async (t) => {
-        setSettings(s => ({ ...s, tags: s.tags.filter(x => x !== t) }));
-        for (const r of receipts) if ((r.tags || []).includes(t)) await dbPut('receipts', { ...r, tags: r.tags.filter(x => x !== t), updatedAt: new Date().toISOString() });
-        setArmed(null);
-      };
-      if (tag) {
-        const list = receipts.filter(r => (r.tags || []).includes(tag)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        const sum = list.reduce((s, r) => s + (+r.total || 0), 0);
-        return (
-          <>
-            <div style={{ padding: '0 12px 8px' }}><button className="btn" onClick={() => setTag(null)}>Back to tags</button></div>
-            <div className="total-line"><span>#{tag}: {list.length} receipt{list.length === 1 ? '' : 's'}</span><span className="amt">{fmtMoney(sum, settings.currency)}</span></div>
-            {list.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} />)}
-          </>
-        );
-      }
-      return (
-        <>
-          <div className="banner info">A receipt has one category (its type: Electronics, Bills) and any number of tags (why you keep it: #Warranty, #Reimbursable). This screen lists receipts by tag.</div>
-          {settings.tags.map(t => (
-            <div key={t} className="card row">
-              <div className="grow" onClick={() => setTag(t)} style={{ cursor: 'pointer' }}>
-                <div style={{ fontWeight: 600 }}>#{t}</div>
-                <div className="small muted">{(counts[t] || { n: 0 }).n} receipts · {fmtMoney((counts[t] || { sum: 0 }).sum, settings.currency)}</div>
-              </div>
-              <button className={'chip btn' + (armed === t ? ' on' : '')} style={armed === t ? { background: '#B23A3A', borderColor: '#B23A3A' } : {}} onClick={() => armed === t ? removeTag(t) : setArmed(t)}>{armed === t ? 'Confirm' : 'Remove'}</button>
-            </div>
-          ))}
-          <div className="card row"><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag, e.g. Tax 2026" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
         </>
       );
     }
@@ -1168,6 +1211,13 @@
         await reload(); setArmed(null);
       };
       const addCat = () => { const c = newCat.trim(); if (!c || settings.categories.includes(c)) return; setSettings(s => ({ ...s, categories: [...s.categories, c] })); setNewCat(''); };
+      const [newTag, setNewTag] = useState('');
+      const addTag = () => { const t = newTag.trim(); if (!t || settings.tags.includes(t)) return; setSettings(s => ({ ...s, tags: [...s.tags, t] })); setNewTag(''); };
+      const removeTag = async (t) => {
+        setSettings(s => ({ ...s, tags: s.tags.filter(x => x !== t) }));
+        for (const r of receipts) if ((r.tags || []).includes(t)) await dbPut('receipts', { ...r, tags: r.tags.filter(x => x !== t), updatedAt: new Date().toISOString() });
+        await reload(); setArmed(null);
+      };
       // Drive
       const driveSync = async () => {
         if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
@@ -1241,6 +1291,18 @@
             <div className="row" style={{ marginTop: 10 }}><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New category" value={newCat} onChange={e => setNewCat(e.target.value)} /><button className="btn" onClick={addCat}>Add</button></div>
           </div>
 
+          <div className="section-h"><span>Tags (any number per receipt)</span></div>
+          <div className="card">
+            {settings.tags.map(t => (
+              <div key={t} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                <span className="chip tag">#{t}</span>
+                <span className="grow small muted">{receipts.filter(r => (r.tags || []).includes(t)).length} receipts</span>
+                <button className="chip btn" style={armed === 'tag:' + t ? { background: '#B23A3A', color: '#fff', borderColor: '#B23A3A' } : {}} onClick={() => armed === 'tag:' + t ? removeTag(t) : setArmed('tag:' + t)}>{armed === 'tag:' + t ? 'Confirm' : 'Remove'}</button>
+              </div>
+            ))}
+            <div className="row" style={{ marginTop: 10 }}><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag, e.g. Tax 2026" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
+          </div>
+
           <div className="section-h"><span>Capture</span></div>
           <div className="card">
             <label className="row" style={{ justifyContent: 'space-between' }}><span>Enhance scans by default (black and white, cleaned)</span><input type="checkbox" checked={settings.enhanceDefault} onChange={e => setSettings(s => ({ ...s, enhanceDefault: e.target.checked }))} style={{ width: 22, height: 22 }} /></label>
@@ -1284,10 +1346,10 @@
       const [settings, setSettingsState] = useState(loadSettings);
       const setSettings = useCallback((fn) => setSettingsState(s => { const n = typeof fn === 'function' ? fn(s) : fn; saveSettings(n); return n; }), []);
       const [receipts, setReceipts] = useState([]);
-      const [tab, setTab] = useState('receipts');
+      const [showSettings, setShowSettings] = useState(false);
       const [capturing, setCapturing] = useState(false);
       const [open, setOpen] = useState(null);
-      const [filter, setFilter] = useState({});
+      const [filter, setFilter] = useState(EMPTY_FILTER);
       const [loaded, setLoaded] = useState(false);
       const reload = useCallback(async () => { try { const all = await dbGetAll('receipts'); setReceipts(all); } catch (e) { console.error(e); } setLoaded(true); }, []);
       useEffect(() => { reload(); }, []);
@@ -1297,19 +1359,17 @@
       const onDeleted = (id) => { setReceipts(list => list.filter(x => x.id !== id)); setOpen(null); };
       if (capturing) return <CaptureFlow settings={settings} setSettings={setSettings} onSaved={onSaved} onCancel={() => setCapturing(false)} />;
       if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
+      if (showSettings) return (
+        <div className="sheet">
+          <div className="topbar"><button className="btn" onClick={() => setShowSettings(false)}>Back</button><h1 style={{ fontSize: 18 }}>Settings</h1><span style={{ width: 70 }} /></div>
+          <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} />
+        </div>
+      );
       return (
         <div className="app">
-          <div className="topbar"><h1>{tab === 'receipts' ? 'Receipts' : tab === 'sections' ? 'Tags' : 'Settings'}</h1>{tab === 'receipts' && <span className="small muted">{receipts.length} total</span>}</div>
-          {!loaded ? <div className="empty">Loading...</div> :
-            tab === 'receipts' ? <ReceiptList receipts={receipts} settings={settings} onOpen={setOpen} filter={filter} setFilter={setFilter} /> :
-            tab === 'sections' ? <Sections receipts={receipts} settings={settings} setSettings={setSettings} onOpen={setOpen} /> :
-            <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} />}
+          <div className="topbar"><h1>Receipts</h1><div className="row"><span className="small muted">{receipts.length} total</span><button className="btn" style={{ padding: '8px 12px' }} onClick={() => setShowSettings(true)} aria-label="Settings">⚙️</button></div></div>
+          {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={setOpen} filter={filter} setFilter={setFilter} />}
           <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>
-          <div className="tabbar">
-            <button className={tab === 'receipts' ? 'on' : ''} onClick={() => setTab('receipts')}><span className="ico">🧾</span>Receipts</button>
-            <button className={tab === 'sections' ? 'on' : ''} onClick={() => setTab('sections')}><span className="ico">🏷️</span>Tags</button>
-            <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}><span className="ico">⚙️</span>Settings</button>
-          </div>
         </div>
       );
     }

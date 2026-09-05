@@ -23,14 +23,14 @@
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    .app { min-height: 100vh; padding-bottom: calc(76px + var(--safe-b)); }
+    .app { min-height: 100vh; padding-bottom: calc(100px + var(--safe-b)); }
     .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(10px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .topbar h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
     .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 6px 0 calc(6px + var(--safe-b)); }
     .tabbar button { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .tabbar button.on { color: var(--navy); font-weight: 600; }
     .tabbar .ico { font-size: 20px; line-height: 1; }
-    .fab { position: fixed; right: 18px; bottom: calc(84px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
+    .fab { position: fixed; right: 18px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 12px 10px; }
     .row { display: flex; align-items: center; gap: 10px; }
     .grow { flex: 1; min-width: 0; }
@@ -55,6 +55,7 @@
     .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 16px; }
     .field textarea { min-height: 72px; resize: vertical; }
     .field.unsure input, .field.unsure select { border-color: var(--amber); background: var(--amber-soft); }
+    .field.unsure { background: var(--amber-soft); margin-left: -8px; margin-right: -8px; padding: 6px 8px; border-radius: 10px; }
     .unsure-note { font-size: 12px; color: var(--amber); margin-top: 4px; }
     .section-h { padding: 14px 16px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; }
     .empty { text-align: center; color: var(--muted); padding: 60px 24px; }
@@ -402,7 +403,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-05c-warranty-tag-only';
+const BUILD_VERSION = '2026-09-05d-form-and-filters';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -497,6 +498,31 @@ const fmtMoney = (n, cur) => {
   if (n === null || n === undefined || n === '' || isNaN(+n)) return '';
   const v = (+n).toFixed(2);
   return (cur === 'AUD' || !cur ? '$' : cur + ' ') + v;
+};
+const parseDate = txt => {
+  const t = String(txt || '').trim();
+  if (!t) return null;
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = t.match(/^(\d{1,2})[\/.\-\s](\d{1,2})(?:[\/.\-\s](\d{2,4}))?$/);
+  if (!m) {
+    const d = t.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (d) m = [null, d[1], d[2], d[3]];else {
+      const e = t.match(/^(\d{2})(\d{2})(\d{2})$/);
+      if (e) m = [null, e[1], e[2], e[3]];
+    }
+  }
+  if (!m) return null;
+  let y = m[3] ? +m[3] : new Date().getFullYear();
+  if (y < 100) y += 2000;
+  const mo = +m[2],
+    d = +m[1];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+};
+const gstOf = total => {
+  const t = +total;
+  return isNaN(t) ? null : Math.round(t / 11 * 100) / 100;
 };
 const monthLabel = iso => {
   const d = new Date(iso + 'T00:00:00');
@@ -1289,8 +1315,8 @@ const csvEscape = v => {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 };
 const buildCSV = receipts => {
-  const rows = [['id', 'date', 'merchant', 'total', 'gst', 'currency', 'category', 'tags', 'items', 'comments', 'pages', 'needs_review']];
-  receipts.forEach(r => rows.push([r.id, r.date, r.merchant, r.total, r.gst, r.currency, r.category, (r.tags || []).join('; '), r.items, r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
+  const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'comments', 'pages', 'needs_review']];
+  receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
   return rows.map(r => r.map(csvEscape).join(',')).join('\n');
 };
 const buildExportZip = async (receipts, settings) => {
@@ -2190,7 +2216,7 @@ function CaptureFlow({
       merchant: data && data.merchant || '',
       date: data && data.date || todayISO(),
       total: data && data.total !== null && data.total !== undefined ? data.total : '',
-      gst: data && data.gst !== null && data.gst !== undefined ? data.gst : '',
+      gstIncluded: !!(data && data.gst > 0),
       currency: data && data.currency || settings.currency,
       category: cat || '',
       tags,
@@ -2224,7 +2250,7 @@ function CaptureFlow({
       merchant: '',
       date: todayISO(),
       total: '',
-      gst: '',
+      gstIncluded: false,
       currency: settings.currency,
       category: '',
       tags: [],
@@ -2395,6 +2421,143 @@ function CaptureFlow({
   }, "Enter details by hand")));
 }
 const var_red = () => '#B23A3A';
+function DateField({
+  value,
+  onChange,
+  placeholder
+}) {
+  const [text, setText] = useState(fmtDate(value));
+  useEffect(() => {
+    setText(fmtDate(value));
+  }, [value]);
+  const pickRef = useRef(null);
+  const commit = () => {
+    const t = text.trim();
+    if (!t) {
+      onChange('');
+      return;
+    }
+    const iso = parseDate(t);
+    if (iso) onChange(iso);else setText(fmtDate(value));
+  };
+  const openPicker = () => {
+    const el = pickRef.current;
+    if (!el) return;
+    try {
+      if (el.showPicker) el.showPicker();else el.click();
+    } catch (_) {
+      el.click();
+    }
+  };
+  return React.createElement("div", {
+    className: "row",
+    style: {
+      position: 'relative',
+      gap: 6
+    }
+  }, React.createElement("input", {
+    className: "grow",
+    inputMode: "numeric",
+    placeholder: placeholder || 'dd/mm/yyyy',
+    value: text,
+    onChange: e => setText(e.target.value),
+    onBlur: commit,
+    onKeyDown: e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+        e.target.blur();
+      }
+    }
+  }), React.createElement("button", {
+    type: "button",
+    className: "btn",
+    style: {
+      padding: '10px 12px'
+    },
+    onClick: openPicker,
+    "aria-label": "Pick a date"
+  }, "📅"), React.createElement("input", {
+    ref: pickRef,
+    type: "date",
+    value: value || '',
+    onChange: e => onChange(e.target.value),
+    tabIndex: -1,
+    style: {
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      width: 1,
+      height: 1,
+      opacity: 0,
+      pointerEvents: 'none'
+    }
+  }));
+}
+function ChipPicker({
+  options,
+  value,
+  onChange,
+  multi,
+  onAdd,
+  addLabel
+}) {
+  const [adding, setAdding] = useState(false);
+  const [txt, setTxt] = useState('');
+  const selected = multi ? value || [] : value ? [value] : [];
+  const toggle = o => {
+    if (multi) onChange(selected.includes(o) ? selected.filter(x => x !== o) : [...selected, o]);else onChange(value === o ? '' : o);
+  };
+  const commit = () => {
+    const t = txt.trim();
+    if (t) {
+      onAdd(t);
+      if (multi) onChange([...selected, t]);else onChange(t);
+    }
+    setTxt('');
+    setAdding(false);
+  };
+  return React.createElement("div", {
+    className: "chips"
+  }, options.map(o => React.createElement("button", {
+    key: o,
+    type: "button",
+    className: 'chip btn' + (selected.includes(o) ? ' on' : ''),
+    onClick: () => toggle(o)
+  }, multi ? '#' : '', o)), adding ? React.createElement("span", {
+    className: "row",
+    style: {
+      gap: 4
+    }
+  }, React.createElement("input", {
+    autoFocus: true,
+    style: {
+      padding: '4px 8px',
+      borderRadius: 999,
+      border: '1px solid var(--line)',
+      width: 130,
+      fontSize: 13
+    },
+    value: txt,
+    onChange: e => setTxt(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      }
+      if (e.key === 'Escape') setAdding(false);
+    },
+    onBlur: commit,
+    placeholder: addLabel
+  })) : React.createElement("button", {
+    type: "button",
+    className: "chip btn",
+    style: {
+      borderStyle: 'dashed'
+    },
+    onClick: () => setAdding(true)
+  }, "+ New"));
+}
 function ReceiptForm({
   draft,
   pages,
@@ -2410,8 +2573,6 @@ function ReceiptForm({
 }) {
   const [r, setR] = useState(draft);
   const [saving, setSaving] = useState(false);
-  const [newCat, setNewCat] = useState('');
-  const [newTag, setNewTag] = useState('');
   const [armed, setArmed] = useState(false);
   const set = (k, v) => setR(x => ({
     ...x,
@@ -2419,39 +2580,24 @@ function ReceiptForm({
     unsure: (x.unsure || []).filter(f => f !== k)
   }));
   const unsure = k => (r.unsure || []).includes(k);
-  const toggleTag = t => setR(x => ({
-    ...x,
-    tags: x.tags.includes(t) ? x.tags.filter(y => y !== t) : [...x.tags, t]
-  }));
-  const addCat = () => {
-    const c = newCat.trim();
-    if (!c) return;
+  const addCat = c => {
     if (!settings.categories.includes(c)) setSettings(s => ({
       ...s,
       categories: [...s.categories, c]
     }));
-    set('category', c);
-    setNewCat('');
   };
-  const addTag = () => {
-    const t = newTag.trim();
-    if (!t) return;
+  const addTag = t => {
     if (!settings.tags.includes(t)) setSettings(s => ({
       ...s,
       tags: [...s.tags, t]
     }));
-    setR(x => ({
-      ...x,
-      tags: x.tags.includes(t) ? x.tags : [...x.tags, t]
-    }));
-    setNewTag('');
   };
   const doSave = async () => {
     setSaving(true);
     const out = {
       ...r,
       total: r.total === '' ? null : +r.total,
-      gst: r.gst === '' ? null : +r.gst,
+      gst: r.gstIncluded ? gstOf(r.total) : null,
       needsReview: (r.unsure || []).length > 0
     };
     try {
@@ -2466,6 +2612,11 @@ function ReceiptForm({
     const t = setTimeout(() => setArmed(false), 3000);
     return () => clearTimeout(t);
   }, [armed]);
+  const Note = ({
+    k
+  }) => unsure(k) ? React.createElement("div", {
+    className: "unsure-note"
+  }, "Check this") : null;
   return React.createElement("div", {
     className: "sheet"
   }, React.createElement("div", {
@@ -2493,7 +2644,7 @@ function ReceiptForm({
     className: "card"
   }, React.createElement("div", {
     className: "pages"
-  }, pages.map((p, i) => React.createElement("div", {
+  }, pages.map(p => React.createElement("div", {
     key: p.id,
     style: {
       position: 'relative'
@@ -2521,25 +2672,36 @@ function ReceiptForm({
   }, "+ Add page"))), React.createElement("div", {
     className: "card"
   }, React.createElement("div", {
+    className: "field"
+  }, React.createElement("label", null, "Item"), React.createElement("input", {
+    value: r.items || '',
+    onChange: e => set('items', e.target.value),
+    placeholder: "What was bought"
+  })), React.createElement("div", {
     className: 'field' + (unsure('merchant') ? ' unsure' : '')
   }, React.createElement("label", null, "Merchant"), React.createElement("input", {
     value: r.merchant,
     onChange: e => set('merchant', e.target.value),
     placeholder: "e.g. JB Hi-Fi"
-  }), unsure('merchant') && React.createElement("div", {
-    className: "unsure-note"
-  }, "Check this")), React.createElement("div", {
-    className: "row"
+  }), React.createElement(Note, {
+    k: "merchant"
+  })), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: 'flex-start'
+    }
   }, React.createElement("div", {
     className: 'field grow' + (unsure('date') ? ' unsure' : '')
-  }, React.createElement("label", null, "Date"), React.createElement("input", {
-    type: "date",
-    value: r.date || '',
-    onChange: e => set('date', e.target.value)
-  }), unsure('date') && React.createElement("div", {
-    className: "unsure-note"
-  }, "Check this")), React.createElement("div", {
-    className: 'field grow' + (unsure('total') ? ' unsure' : '')
+  }, React.createElement("label", null, "Date"), React.createElement(DateField, {
+    value: r.date,
+    onChange: v => set('date', v)
+  }), React.createElement(Note, {
+    k: "date"
+  })), React.createElement("div", {
+    className: 'field' + (unsure('total') ? ' unsure' : ''),
+    style: {
+      width: 130
+    }
   }, React.createElement("label", null, "Total (", r.currency, ")"), React.createElement("input", {
     type: "number",
     inputMode: "decimal",
@@ -2547,93 +2709,74 @@ function ReceiptForm({
     value: r.total,
     onChange: e => set('total', e.target.value),
     placeholder: "0.00"
-  }), unsure('total') && React.createElement("div", {
-    className: "unsure-note"
-  }, "Check this"))), React.createElement("div", {
-    className: "row"
-  }, React.createElement("div", {
-    className: "field grow"
-  }, React.createElement("label", null, "GST"), React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.01",
-    value: r.gst,
-    onChange: e => set('gst', e.target.value),
-    placeholder: "optional"
-  })), React.createElement("div", {
-    className: "field grow"
-  }, React.createElement("label", null, "Currency"), React.createElement("input", {
-    value: r.currency,
-    onChange: e => set('currency', e.target.value.toUpperCase()),
-    maxLength: 3
+  }), React.createElement(Note, {
+    k: "total"
+  }))), React.createElement("div", {
+    className: "field"
+  }, React.createElement("label", {
+    className: "row",
+    style: {
+      justifyContent: 'space-between',
+      textTransform: 'none',
+      letterSpacing: 0,
+      fontSize: 15,
+      fontWeight: 500,
+      color: 'var(--ink)',
+      cursor: 'pointer'
+    }
+  }, React.createElement("span", null, "GST included", r.gstIncluded && r.total !== '' ? React.createElement("span", {
+    className: "muted small"
+  }, " (", fmtMoney(gstOf(r.total), r.currency), ")") : null), React.createElement("input", {
+    type: "checkbox",
+    checked: !!r.gstIncluded,
+    onChange: e => set('gstIncluded', e.target.checked),
+    style: {
+      width: 22,
+      height: 22
+    }
   }))), React.createElement("div", {
     className: 'field' + (unsure('category') ? ' unsure' : '')
-  }, React.createElement("label", null, "Category (one per receipt)"), React.createElement("select", {
+  }, React.createElement("label", null, "Category (pick one)"), React.createElement(ChipPicker, {
+    options: settings.categories,
     value: r.category,
-    onChange: e => set('category', e.target.value)
-  }, React.createElement("option", {
-    value: ""
-  }, "Uncategorised"), settings.categories.map(c => React.createElement("option", {
-    key: c,
-    value: c
-  }, c))), unsure('category') && React.createElement("div", {
-    className: "unsure-note"
-  }, "Check this"), React.createElement("div", {
-    className: "row",
-    style: {
-      marginTop: 6
-    }
-  }, React.createElement("input", {
-    className: "grow",
-    style: {
-      padding: '8px 10px',
-      borderRadius: 8,
-      border: '1px solid var(--line)'
-    },
-    placeholder: "New category",
-    value: newCat,
-    onChange: e => setNewCat(e.target.value)
-  }), React.createElement("button", {
-    className: "btn",
-    onClick: addCat
-  }, "Add"))), React.createElement("div", {
+    onChange: v => set('category', v),
+    onAdd: addCat,
+    addLabel: "New category"
+  }), React.createElement(Note, {
+    k: "category"
+  })), React.createElement("div", {
     className: "field"
-  }, React.createElement("label", null, "Tags (a receipt can have several)"), React.createElement("div", {
-    className: "chips"
-  }, settings.tags.map(t => React.createElement("button", {
-    key: t,
-    className: 'chip btn' + (r.tags.includes(t) ? ' on' : ''),
-    onClick: () => toggleTag(t)
-  }, "#", t))), React.createElement("div", {
-    className: "row",
-    style: {
-      marginTop: 8
-    }
-  }, React.createElement("input", {
-    className: "grow",
-    style: {
-      padding: '8px 10px',
-      borderRadius: 8,
-      border: '1px solid var(--line)'
-    },
-    placeholder: "New tag",
-    value: newTag,
-    onChange: e => setNewTag(e.target.value)
-  }), React.createElement("button", {
-    className: "btn",
-    onClick: addTag
-  }, "Add"))), React.createElement("div", {
-    className: "field"
-  }, React.createElement("label", null, "Items"), React.createElement("input", {
-    value: r.items || '',
-    onChange: e => set('items', e.target.value),
-    placeholder: "What was bought"
+  }, React.createElement("label", null, "Tags (pick any)"), React.createElement(ChipPicker, {
+    multi: true,
+    options: settings.tags,
+    value: r.tags,
+    onChange: v => set('tags', v),
+    onAdd: addTag,
+    addLabel: "New tag"
   })), React.createElement("div", {
     className: "field"
   }, React.createElement("label", null, "Comments"), React.createElement("textarea", {
     value: r.comments || '',
     onChange: e => set('comments', e.target.value),
     placeholder: "Warranty period, who to claim from, anything else"
+  })), React.createElement("div", {
+    className: "row",
+    style: {
+      justifyContent: 'space-between'
+    }
+  }, React.createElement("span", {
+    className: "small muted"
+  }, "Currency"), React.createElement("input", {
+    value: r.currency,
+    onChange: e => set('currency', e.target.value.toUpperCase()),
+    maxLength: 3,
+    style: {
+      width: 64,
+      padding: '6px',
+      borderRadius: 8,
+      border: '1px solid var(--line)',
+      textAlign: 'center'
+    }
   }))), onDelete && React.createElement("div", {
     style: {
       padding: '0 12px 20px'
@@ -2816,7 +2959,7 @@ function ReceiptDetail({
     draft: {
       ...receipt,
       total: receipt.total ?? '',
-      gst: receipt.gst ?? '',
+      gstIncluded: !!receipt.gstIncluded,
       tags: receipt.tags || []
     },
     pages: pages,
@@ -2860,19 +3003,36 @@ function ReceiptDetail({
   }, "Some fields were unsure when this was read. Open Edit to confirm them."), React.createElement("div", {
     className: "card"
   }, React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: 'flex-start',
+      justifyContent: 'space-between'
+    }
+  }, React.createElement("div", {
+    className: "grow"
+  }, React.createElement("div", {
     style: {
       fontSize: 20,
-      fontWeight: 700
-    }
-  }, receipt.merchant || 'Unknown merchant'), React.createElement("div", {
-    style: {
-      fontSize: 28,
       fontWeight: 700,
-      margin: '4px 0 8px'
+      lineHeight: 1.25
+    }
+  }, receipt.items || receipt.merchant || 'Receipt'), React.createElement("div", {
+    className: "muted",
+    style: {
+      marginTop: 2
+    }
+  }, receipt.items ? receipt.merchant || 'Unknown merchant' : '', receipt.items && receipt.merchant ? ' · ' : '', fmtDate(receipt.date) || 'No date')), React.createElement("div", {
+    style: {
+      fontSize: 24,
+      fontWeight: 700,
+      whiteSpace: 'nowrap'
     },
     className: "amt"
-  }, fmtMoney(receipt.total, receipt.currency) || 'No total'), React.createElement("div", {
-    className: "chips"
+  }, fmtMoney(receipt.total, receipt.currency) || 'No total')), React.createElement("div", {
+    className: "chips",
+    style: {
+      marginTop: 10
+    }
   }, receipt.category && React.createElement("span", {
     className: "chip",
     style: {
@@ -2889,11 +3049,7 @@ function ReceiptDetail({
     }
   }, React.createElement("span", {
     className: "k"
-  }, "Date"), React.createElement("span", null, fmtDate(receipt.date) || 'Unknown'), receipt.gst !== null && receipt.gst !== undefined && receipt.gst !== '' && React.createElement(React.Fragment, null, React.createElement("span", {
-    className: "k"
-  }, "GST"), React.createElement("span", null, fmtMoney(receipt.gst, receipt.currency))), receipt.items && React.createElement(React.Fragment, null, React.createElement("span", {
-    className: "k"
-  }, "Items"), React.createElement("span", null, receipt.items)), receipt.comments && React.createElement(React.Fragment, null, React.createElement("span", {
+  }, "GST"), React.createElement("span", null, receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'), receipt.comments && React.createElement(React.Fragment, null, React.createElement("span", {
     className: "k"
   }, "Comments"), React.createElement("span", {
     style: {
@@ -2954,6 +3110,15 @@ function AddPageFlow({
     setSettings: setSettings
   });
 }
+const EMPTY_FILTER = {
+  sort: 'date_desc',
+  from: '',
+  to: '',
+  cats: [],
+  tags: [],
+  review: false
+};
+const filterCount = f => (f.from ? 1 : 0) + (f.to ? 1 : 0) + f.cats.length + f.tags.length + (f.review ? 1 : 0);
 function ReceiptRow({
   r,
   cats,
@@ -2983,20 +3148,22 @@ function ReceiptRow({
   }, React.createElement("div", {
     className: "row",
     style: {
-      justifyContent: 'space-between'
+      justifyContent: 'space-between',
+      alignItems: 'flex-start'
     }
   }, React.createElement("div", {
     style: {
       fontWeight: 600,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
+      lineHeight: 1.25
+    }
+  }, r.items || r.merchant || 'Receipt'), React.createElement("div", {
+    className: "amt",
+    style: {
       whiteSpace: 'nowrap'
     }
-  }, r.merchant || 'Unknown merchant'), React.createElement("div", {
-    className: "amt"
   }, fmtMoney(r.total, r.currency))), React.createElement("div", {
     className: "small muted"
-  }, fmtDate(r.date), r.items ? ' · ' + r.items : ''), React.createElement("div", {
+  }, r.items ? (r.merchant || 'Unknown merchant') + ' · ' : '', fmtDate(r.date)), React.createElement("div", {
     className: "chips",
     style: {
       marginTop: 5
@@ -3028,20 +3195,35 @@ function ReceiptList({
   setFilter
 }) {
   const [q, setQ] = useState('');
+  const [panel, setPanel] = useState(false);
+  const f = {
+    ...EMPTY_FILTER,
+    ...filter
+  };
   const shown = useMemo(() => {
     let list = receipts.slice();
-    if (filter.category) list = list.filter(r => r.category === filter.category);
-    if (filter.tag) list = list.filter(r => (r.tags || []).includes(filter.tag));
-    if (filter.review) list = list.filter(r => r.needsReview);
+    if (f.cats.length) list = list.filter(r => f.cats.includes(r.category));
+    if (f.tags.length) list = list.filter(r => f.tags.some(t => (r.tags || []).includes(t)));
+    if (f.review) list = list.filter(r => r.needsReview);
+    if (f.from) list = list.filter(r => (r.date || '') >= f.from);
+    if (f.to) list = list.filter(r => (r.date || '') <= f.to);
     if (q.trim()) {
       const s = q.trim().toLowerCase();
       list = list.filter(r => [r.merchant, r.items, r.comments, r.category, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s));
     }
-    list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    const byDate = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
+    if (f.sort === 'date_asc') list.sort(byDate);else if (f.sort === 'amount_desc') list.sort((a, b) => (+b.total || 0) - (+a.total || 0));else if (f.sort === 'amount_asc') list.sort((a, b) => (+a.total || 0) - (+b.total || 0));else list.sort((a, b) => byDate(b, a));
     return list;
-  }, [receipts, filter, q]);
+  }, [receipts, f.cats, f.tags, f.review, f.from, f.to, f.sort, q]);
   const total = shown.reduce((s, r) => s + (+r.total || 0), 0);
+  const grouped = f.sort === 'date_desc' || f.sort === 'date_asc';
   const groups = useMemo(() => {
+    if (!grouped) return [{
+      key: 'all',
+      label: null,
+      items: shown,
+      sum: total
+    }];
     const g = [];
     let cur = null;
     for (const r of shown) {
@@ -3059,58 +3241,168 @@ function ReceiptList({
       cur.sum += +r.total || 0;
     }
     return g;
-  }, [shown]);
+  }, [shown, grouped]);
   const reviewCount = receipts.filter(r => r.needsReview).length;
+  const n = filterCount(f);
+  const toggleIn = (key, v) => setFilter({
+    ...f,
+    [key]: f[key].includes(v) ? f[key].filter(x => x !== v) : [...f[key], v]
+  });
+  const sortLabel = {
+    date_desc: 'Newest first',
+    date_asc: 'Oldest first',
+    amount_desc: 'Largest first',
+    amount_asc: 'Smallest first'
+  }[f.sort];
   return React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "row",
     style: {
-      padding: '0 12px 6px'
+      padding: '0 12px 8px',
+      gap: 8
     }
   }, React.createElement("input", {
-    className: "search",
-    placeholder: "Search merchant, items, comments",
+    className: "search grow",
+    placeholder: "Search item, merchant, comments",
     value: q,
     onChange: e => setQ(e.target.value)
-  })), React.createElement("div", {
-    className: "filters"
-  }, React.createElement("span", {
-    className: "flabel"
-  }, "Show"), React.createElement("button", {
-    className: 'chip btn' + (!filter.category && !filter.tag && !filter.review ? ' on' : ''),
-    onClick: () => setFilter({})
-  }, "All"), reviewCount > 0 && React.createElement("button", {
-    className: 'chip btn' + (filter.review ? ' on' : ''),
+  }), React.createElement("button", {
+    className: 'btn' + (n || panel ? ' primary' : ''),
+    style: {
+      whiteSpace: 'nowrap',
+      padding: '10px 14px'
+    },
+    onClick: () => setPanel(p => !p)
+  }, "Filter", n ? ` (${n})` : '')), panel && React.createElement("div", {
+    className: "card",
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12
+    }
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "flabel",
+    style: {
+      marginBottom: 6
+    }
+  }, "Sort"), React.createElement("div", {
+    className: "chips"
+  }, [['date_desc', 'Newest'], ['date_asc', 'Oldest'], ['amount_desc', 'Largest'], ['amount_asc', 'Smallest']].map(([k, l]) => React.createElement("button", {
+    key: k,
+    className: 'chip btn' + (f.sort === k ? ' on' : ''),
     onClick: () => setFilter({
-      review: true
+      ...f,
+      sort: k
     })
-  }, "Needs check (", reviewCount, ")")), React.createElement("div", {
-    className: "filters"
-  }, React.createElement("span", {
-    className: "flabel"
-  }, "Category"), settings.categories.map(c => React.createElement("button", {
+  }, l)))), React.createElement("div", null, React.createElement("div", {
+    className: "flabel",
+    style: {
+      marginBottom: 6
+    }
+  }, "Date range"), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: 'flex-start'
+    }
+  }, React.createElement("div", {
+    className: "grow"
+  }, React.createElement(DateField, {
+    value: f.from,
+    onChange: v => setFilter({
+      ...f,
+      from: v
+    }),
+    placeholder: "From"
+  })), React.createElement("div", {
+    className: "grow"
+  }, React.createElement(DateField, {
+    value: f.to,
+    onChange: v => setFilter({
+      ...f,
+      to: v
+    }),
+    placeholder: "To"
+  })))), React.createElement("div", null, React.createElement("div", {
+    className: "flabel",
+    style: {
+      marginBottom: 6
+    }
+  }, "Category (any of)"), React.createElement("div", {
+    className: "chips"
+  }, settings.categories.map(c => React.createElement("button", {
     key: c,
-    className: 'chip btn' + (filter.category === c ? ' on' : ''),
-    onClick: () => setFilter(filter.category === c ? {} : {
-      category: c
-    })
-  }, c))), React.createElement("div", {
-    className: "filters"
-  }, React.createElement("span", {
-    className: "flabel"
-  }, "Tag"), settings.tags.map(t => React.createElement("button", {
+    className: 'chip btn' + (f.cats.includes(c) ? ' on' : ''),
+    onClick: () => toggleIn('cats', c)
+  }, c)))), React.createElement("div", null, React.createElement("div", {
+    className: "flabel",
+    style: {
+      marginBottom: 6
+    }
+  }, "Tag (any of)"), React.createElement("div", {
+    className: "chips"
+  }, settings.tags.map(t => React.createElement("button", {
     key: t,
-    className: 'chip btn' + (filter.tag === t ? ' on' : ''),
-    onClick: () => setFilter(filter.tag === t ? {} : {
-      tag: t
+    className: 'chip btn' + (f.tags.includes(t) ? ' on' : ''),
+    onClick: () => toggleIn('tags', t)
+  }, "#", t)))), React.createElement("div", {
+    className: "row",
+    style: {
+      justifyContent: 'space-between'
+    }
+  }, React.createElement("button", {
+    className: 'chip btn' + (f.review ? ' on' : ''),
+    onClick: () => setFilter({
+      ...f,
+      review: !f.review
     })
-  }, "#", t))), React.createElement("div", {
+  }, "Needs check", reviewCount ? ` (${reviewCount})` : ''), React.createElement("div", {
+    className: "row"
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: () => setFilter({
+      ...EMPTY_FILTER,
+      sort: f.sort
+    }),
+    disabled: !n
+  }, "Clear"), React.createElement("button", {
+    className: "btn primary",
+    onClick: () => setPanel(false)
+  }, "Done")))), !panel && n > 0 && React.createElement("div", {
+    className: "filters"
+  }, f.from && React.createElement("button", {
+    className: "chip btn on",
+    onClick: () => setFilter({
+      ...f,
+      from: ''
+    })
+  }, "from ", fmtDate(f.from), " x"), f.to && React.createElement("button", {
+    className: "chip btn on",
+    onClick: () => setFilter({
+      ...f,
+      to: ''
+    })
+  }, "to ", fmtDate(f.to), " x"), f.cats.map(c => React.createElement("button", {
+    key: c,
+    className: "chip btn on",
+    onClick: () => toggleIn('cats', c)
+  }, c, " x")), f.tags.map(t => React.createElement("button", {
+    key: t,
+    className: "chip btn on",
+    onClick: () => toggleIn('tags', t)
+  }, "#", t, " x")), f.review && React.createElement("button", {
+    className: "chip btn on",
+    onClick: () => setFilter({
+      ...f,
+      review: false
+    })
+  }, "Needs check x")), React.createElement("div", {
     className: "total-line"
-  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's'), React.createElement("span", {
+  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " · ", sortLabel), React.createElement("span", {
     className: "amt"
   }, fmtMoney(total, settings.currency))), !shown.length && React.createElement("div", {
     className: "empty"
-  }, receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to photograph one.'), groups.map(g => React.createElement("div", {
+  }, receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to add one.'), groups.map(g => React.createElement("div", {
     key: g.key
-  }, React.createElement("div", {
+  }, g.label && React.createElement("div", {
     className: "section-h"
   }, React.createElement("span", null, g.label), React.createElement("span", {
     className: "amt"
@@ -3120,116 +3412,6 @@ function ReceiptList({
     cats: settings.categories,
     onOpen: () => onOpen(r)
   })))));
-}
-function Sections({
-  receipts,
-  settings,
-  setSettings,
-  onOpen
-}) {
-  const [tag, setTag] = useState(null);
-  const [newTag, setNewTag] = useState('');
-  const [armed, setArmed] = useState(null);
-  useEffect(() => {
-    if (!armed) return;
-    const t = setTimeout(() => setArmed(null), 3000);
-    return () => clearTimeout(t);
-  }, [armed]);
-  const counts = {};
-  receipts.forEach(r => (r.tags || []).forEach(t => {
-    counts[t] = counts[t] || {
-      n: 0,
-      sum: 0
-    };
-    counts[t].n++;
-    counts[t].sum += +r.total || 0;
-  }));
-  const addTag = () => {
-    const t = newTag.trim();
-    if (!t || settings.tags.includes(t)) return;
-    setSettings(s => ({
-      ...s,
-      tags: [...s.tags, t]
-    }));
-    setNewTag('');
-  };
-  const removeTag = async t => {
-    setSettings(s => ({
-      ...s,
-      tags: s.tags.filter(x => x !== t)
-    }));
-    for (const r of receipts) if ((r.tags || []).includes(t)) await dbPut('receipts', {
-      ...r,
-      tags: r.tags.filter(x => x !== t),
-      updatedAt: new Date().toISOString()
-    });
-    setArmed(null);
-  };
-  if (tag) {
-    const list = receipts.filter(r => (r.tags || []).includes(tag)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    const sum = list.reduce((s, r) => s + (+r.total || 0), 0);
-    return React.createElement(React.Fragment, null, React.createElement("div", {
-      style: {
-        padding: '0 12px 8px'
-      }
-    }, React.createElement("button", {
-      className: "btn",
-      onClick: () => setTag(null)
-    }, "Back to tags")), React.createElement("div", {
-      className: "total-line"
-    }, React.createElement("span", null, "#", tag, ": ", list.length, " receipt", list.length === 1 ? '' : 's'), React.createElement("span", {
-      className: "amt"
-    }, fmtMoney(sum, settings.currency))), list.map(r => React.createElement(ReceiptRow, {
-      key: r.id,
-      r: r,
-      cats: settings.categories,
-      onOpen: () => onOpen(r)
-    })));
-  }
-  return React.createElement(React.Fragment, null, React.createElement("div", {
-    className: "banner info"
-  }, "A receipt has one category (its type: Electronics, Bills) and any number of tags (why you keep it: #Warranty, #Reimbursable). This screen lists receipts by tag."), settings.tags.map(t => React.createElement("div", {
-    key: t,
-    className: "card row"
-  }, React.createElement("div", {
-    className: "grow",
-    onClick: () => setTag(t),
-    style: {
-      cursor: 'pointer'
-    }
-  }, React.createElement("div", {
-    style: {
-      fontWeight: 600
-    }
-  }, "#", t), React.createElement("div", {
-    className: "small muted"
-  }, (counts[t] || {
-    n: 0
-  }).n, " receipts · ", fmtMoney((counts[t] || {
-    sum: 0
-  }).sum, settings.currency))), React.createElement("button", {
-    className: 'chip btn' + (armed === t ? ' on' : ''),
-    style: armed === t ? {
-      background: '#B23A3A',
-      borderColor: '#B23A3A'
-    } : {},
-    onClick: () => armed === t ? removeTag(t) : setArmed(t)
-  }, armed === t ? 'Confirm' : 'Remove'))), React.createElement("div", {
-    className: "card row"
-  }, React.createElement("input", {
-    className: "grow",
-    style: {
-      padding: '10px',
-      borderRadius: 8,
-      border: '1px solid var(--line)'
-    },
-    placeholder: "New tag, e.g. Tax 2026",
-    value: newTag,
-    onChange: e => setNewTag(e.target.value)
-  }), React.createElement("button", {
-    className: "btn",
-    onClick: addTag
-  }, "Add")));
 }
 function Settings({
   settings,
@@ -3310,6 +3492,29 @@ function Settings({
       categories: [...s.categories, c]
     }));
     setNewCat('');
+  };
+  const [newTag, setNewTag] = useState('');
+  const addTag = () => {
+    const t = newTag.trim();
+    if (!t || settings.tags.includes(t)) return;
+    setSettings(s => ({
+      ...s,
+      tags: [...s.tags, t]
+    }));
+    setNewTag('');
+  };
+  const removeTag = async t => {
+    setSettings(s => ({
+      ...s,
+      tags: s.tags.filter(x => x !== t)
+    }));
+    for (const r of receipts) if ((r.tags || []).includes(t)) await dbPut('receipts', {
+      ...r,
+      tags: r.tags.filter(x => x !== t),
+      updatedAt: new Date().toISOString()
+    });
+    await reload();
+    setArmed(null);
   };
   const driveSync = async () => {
     if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
@@ -3515,6 +3720,47 @@ function Settings({
     onClick: addCat
   }, "Add"))), React.createElement("div", {
     className: "section-h"
+  }, React.createElement("span", null, "Tags (any number per receipt)")), React.createElement("div", {
+    className: "card"
+  }, settings.tags.map(t => React.createElement("div", {
+    key: t,
+    className: "row",
+    style: {
+      padding: '6px 0',
+      borderBottom: '1px solid var(--line)'
+    }
+  }, React.createElement("span", {
+    className: "chip tag"
+  }, "#", t), React.createElement("span", {
+    className: "grow small muted"
+  }, receipts.filter(r => (r.tags || []).includes(t)).length, " receipts"), React.createElement("button", {
+    className: "chip btn",
+    style: armed === 'tag:' + t ? {
+      background: '#B23A3A',
+      color: '#fff',
+      borderColor: '#B23A3A'
+    } : {},
+    onClick: () => armed === 'tag:' + t ? removeTag(t) : setArmed('tag:' + t)
+  }, armed === 'tag:' + t ? 'Confirm' : 'Remove'))), React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 10
+    }
+  }, React.createElement("input", {
+    className: "grow",
+    style: {
+      padding: '10px',
+      borderRadius: 8,
+      border: '1px solid var(--line)'
+    },
+    placeholder: "New tag, e.g. Tax 2026",
+    value: newTag,
+    onChange: e => setNewTag(e.target.value)
+  }), React.createElement("button", {
+    className: "btn",
+    onClick: addTag
+  }, "Add"))), React.createElement("div", {
+    className: "section-h"
   }, React.createElement("span", null, "Capture")), React.createElement("div", {
     className: "card"
   }, React.createElement("label", {
@@ -3667,10 +3913,10 @@ function App() {
     return n;
   }), []);
   const [receipts, setReceipts] = useState([]);
-  const [tab, setTab] = useState('receipts');
+  const [showSettings, setShowSettings] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [open, setOpen] = useState(null);
-  const [filter, setFilter] = useState({});
+  const [filter, setFilter] = useState(EMPTY_FILTER);
   const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     try {
@@ -3717,52 +3963,55 @@ function App() {
     onChanged: onChanged,
     onDeleted: onDeleted
   });
+  if (showSettings) return React.createElement("div", {
+    className: "sheet"
+  }, React.createElement("div", {
+    className: "topbar"
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: () => setShowSettings(false)
+  }, "Back"), React.createElement("h1", {
+    style: {
+      fontSize: 18
+    }
+  }, "Settings"), React.createElement("span", {
+    style: {
+      width: 70
+    }
+  })), React.createElement(Settings, {
+    settings: settings,
+    setSettings: setSettings,
+    receipts: receipts,
+    reload: reload
+  }));
   return React.createElement("div", {
     className: "app"
   }, React.createElement("div", {
     className: "topbar"
-  }, React.createElement("h1", null, tab === 'receipts' ? 'Receipts' : tab === 'sections' ? 'Tags' : 'Settings'), tab === 'receipts' && React.createElement("span", {
+  }, React.createElement("h1", null, "Receipts"), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
     className: "small muted"
-  }, receipts.length, " total")), !loaded ? React.createElement("div", {
+  }, receipts.length, " total"), React.createElement("button", {
+    className: "btn",
+    style: {
+      padding: '8px 12px'
+    },
+    onClick: () => setShowSettings(true),
+    "aria-label": "Settings"
+  }, "⚙️"))), !loaded ? React.createElement("div", {
     className: "empty"
-  }, "Loading...") : tab === 'receipts' ? React.createElement(ReceiptList, {
+  }, "Loading...") : React.createElement(ReceiptList, {
     receipts: receipts,
     settings: settings,
     onOpen: setOpen,
     filter: filter,
     setFilter: setFilter
-  }) : tab === 'sections' ? React.createElement(Sections, {
-    receipts: receipts,
-    settings: settings,
-    setSettings: setSettings,
-    onOpen: setOpen
-  }) : React.createElement(Settings, {
-    settings: settings,
-    setSettings: setSettings,
-    receipts: receipts,
-    reload: reload
   }), React.createElement("button", {
     className: "fab",
     onClick: () => setCapturing(true),
     "aria-label": "Add receipt"
-  }, "+"), React.createElement("div", {
-    className: "tabbar"
-  }, React.createElement("button", {
-    className: tab === 'receipts' ? 'on' : '',
-    onClick: () => setTab('receipts')
-  }, React.createElement("span", {
-    className: "ico"
-  }, "🧾"), "Receipts"), React.createElement("button", {
-    className: tab === 'sections' ? 'on' : '',
-    onClick: () => setTab('sections')
-  }, React.createElement("span", {
-    className: "ico"
-  }, "🏷️"), "Tags"), React.createElement("button", {
-    className: tab === 'settings' ? 'on' : '',
-    onClick: () => setTab('settings')
-  }, React.createElement("span", {
-    className: "ico"
-  }, "⚙️"), "Settings")));
+  }, "+"));
 }
 window.__receipts = {
   makeZip,
