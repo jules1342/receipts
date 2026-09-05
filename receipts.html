@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#1F3A5F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Receipts</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    :root {
+      --bg: #F6F4EE; --card: #FFFFFF; --ink: #1B1F26; --muted: #6B7280; --line: #E4E1D8;
+      --navy: #1F3A5F; --navy-soft: #E6ECF5; --amber: #B7791F; --amber-soft: #FBF1DC;
+      --red: #B23A3A; --green: #2E7D4F; --green-soft: #E3F2E9; --radius: 14px;
+      --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; overscroll-behavior-y: none; }
+    body { min-height: 100vh; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    input, select, textarea { font: inherit; color: inherit; }
+    .app { min-height: 100vh; padding-bottom: calc(76px + var(--safe-b)); }
+    .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(10px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .topbar h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 6px 0 calc(6px + var(--safe-b)); }
+    .tabbar button { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .tabbar button.on { color: var(--navy); font-weight: 600; }
+    .tabbar .ico { font-size: 20px; line-height: 1; }
+    .fab { position: fixed; right: 18px; bottom: calc(84px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 12px 10px; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    .grow { flex: 1; min-width: 0; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: var(--navy-soft); color: var(--navy); border: 1px solid transparent; white-space: nowrap; }
+    .chip.tag { background: var(--green-soft); color: var(--green); }
+    .chip.warn { background: var(--amber-soft); color: var(--amber); }
+    .chip.btn { background: var(--card); border-color: var(--line); color: var(--ink); }
+    .chip.btn.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .thumb { width: 54px; height: 68px; object-fit: cover; border-radius: 8px; background: #eee; border: 1px solid var(--line); flex-shrink: 0; }
+    .btn { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 11px 16px; font-weight: 600; }
+    .btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .btn.danger { color: var(--red); border-color: #E7C9C9; }
+    .btn.danger.armed { background: var(--red); color: #fff; border-color: var(--red); }
+    .btn.wide { width: 100%; }
+    .btn:disabled { opacity: 0.45; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 16px; }
+    .field textarea { min-height: 72px; resize: vertical; }
+    .field.unsure input, .field.unsure select { border-color: var(--amber); background: var(--amber-soft); }
+    .unsure-note { font-size: 12px; color: var(--amber); margin-top: 4px; }
+    .section-h { padding: 14px 16px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; }
+    .empty { text-align: center; color: var(--muted); padding: 60px 24px; }
+    .search { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 15px; }
+    .filters { display: flex; gap: 6px; overflow-x: auto; padding: 4px 12px 8px; scrollbar-width: none; }
+    .filters::-webkit-scrollbar { display: none; }
+    .flabel { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center; min-width: 64px; flex-shrink: 0; }
+    .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding-bottom: calc(24px + var(--safe-b)); }
+    .sheet .topbar { background: var(--bg); }
+    .pages { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+    .pages img { height: 120px; border-radius: 8px; border: 1px solid var(--line); }
+    .pages .add { height: 120px; width: 90px; border-radius: 8px; border: 1px dashed var(--muted); background: none; color: var(--muted); font-size: 13px; }
+    .banner { margin: 0 12px 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+    .banner.err { background: #FBE5E5; color: var(--red); }
+    .banner.ok { background: var(--green-soft); color: var(--green); }
+    .banner.info { background: var(--navy-soft); color: var(--navy); }
+    .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner.dark { border-color: rgba(31,58,95,0.2); border-top-color: var(--navy); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes focusPulse { 0% { transform: scale(1.3); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+    .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 14px; }
+    .kv .k { color: var(--muted); }
+    .total-line { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+    .crop-wrap { position: relative; touch-action: none; user-select: none; }
+    .crop-wrap img { display: block; width: 100%; height: auto; }
+    .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
+    .handle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 5px; background: #fff; }
+    .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .seg button { flex: 1; border: none; background: var(--card); padding: 9px; font-size: 13px; }
+    .seg button.on { background: var(--navy); color: #fff; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; }
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    const BUILD_VERSION = '2026-09-05c-warranty-tag-only';
+    const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
+    const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
+    const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
+
+    // ---------- Settings (localStorage) ----------
+    const SKEY = 'receipts_settings';
+    const loadSettings = () => {
+      const base = { apiKey: '', categories: DEFAULT_CATEGORIES.slice(), tags: DEFAULT_TAGS.slice(), currency: 'AUD', enhanceDefault: true, driveClientId: '', driveFolderId: '', lastSync: null, cameraDevice: '' };
+      try { const s = JSON.parse(localStorage.getItem(SKEY) || '{}'); return { ...base, ...s }; } catch (_) { return base; }
+    };
+    const saveSettings = (s) => { try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch (_) {} };
+
+    // ---------- IndexedDB ----------
+    const DB_NAME = 'receipts_db', DB_VER = 1;
+    let dbPromise = null;
+    const openDB = () => {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((res, rej) => {
+        const req = indexedDB.open(DB_NAME, DB_VER);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('receipts')) db.createObjectStore('receipts', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+        };
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+      return dbPromise;
+    };
+    const tx = async (store, mode, fn) => {
+      const db = await openDB();
+      return new Promise((res, rej) => {
+        const t = db.transaction(store, mode);
+        const s = t.objectStore(store);
+        let out;
+        try { out = fn(s); } catch (e) { rej(e); return; }
+        t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+        t.onerror = () => rej(t.error);
+        t.onabort = () => rej(t.error);
+      });
+    };
+    const dbGetAll = (store) => tx(store, 'readonly', (s) => s.getAll());
+    const dbGet = (store, id) => tx(store, 'readonly', (s) => s.get(id));
+    const dbPut = (store, obj) => tx(store, 'readwrite', (s) => s.put(obj));
+    const dbDel = (store, id) => tx(store, 'readwrite', (s) => s.delete(id));
+    const dbGetImageBlob = async (id) => { const r = await dbGet('images', id); return r ? r.blob : null; };
+
+    const uid = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+    const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const fmtDate = (iso) => { if (!iso) return ''; const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
+    const fmtMoney = (n, cur) => { if (n === null || n === undefined || n === '' || isNaN(+n)) return ''; const v = (+n).toFixed(2); return (cur === 'AUD' || !cur ? '$' : cur + ' ') + v; };
+    const monthLabel = (iso) => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? 'Unknown date' : d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }); };
+    const catColour = (cat, cats) => { const i = Math.max(0, cats.indexOf(cat)); return CATEGORY_COLOURS[i % CATEGORY_COLOURS.length]; };
+
+    // ---------- Image helpers ----------
+    const loadImage = (src) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('could not decode image')); im.src = src; });
+    const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+    const canvasToBlob = (c, q = 0.86) => new Promise((res) => c.toBlob(res, 'image/jpeg', q));
+    const fileToCanvas = async (file, maxDim = 2000) => {
+      let bmp = null;
+      try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (_) {}
+      let src = bmp, w, h;
+      if (bmp) { w = bmp.width; h = bmp.height; }
+      else { const url = URL.createObjectURL(file); src = await loadImage(url); w = src.naturalWidth; h = src.naturalHeight; URL.revokeObjectURL(url); }
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      if (bmp && bmp.close) bmp.close();
+      return c;
+    };
+    const scaleCanvas = (src, maxDim, q = 0.8) => {
+      const scale = Math.min(1, maxDim / Math.max(src.width, src.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', q);
+    };
+    const blobToCanvas = async (blob, maxDim) => fileToCanvas(blob, maxDim);
+
+    // ---------- Edge detection: gradient-weighted Hough on a downscaled grey image ----------
+    // Returns { quad: [4 corners in full-res coords] | null, lines: [{rho, theta, score, kind}] in full-res coords }
+    const detectReceipt = (canvas) => {
+      const W = canvas.width, H = canvas.height;
+      const sc = Math.min(1, 420 / Math.max(W, H));
+      const w = Math.max(8, Math.round(W * sc)), h = Math.max(8, Math.round(H * sc));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d'); ctx.drawImage(canvas, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      const g = new Float32Array(w * h);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      // light blur
+      const gb = new Float32Array(w * h);
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        let s = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += g[(y + dy) * w + x + dx];
+        gb[y * w + x] = s / 9;
+      }
+      const mag = new Float32Array(w * h), ang = new Float32Array(w * h);
+      let maxMag = 0;
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        const gx = (gb[i - w + 1] + 2 * gb[i + 1] + gb[i + w + 1]) - (gb[i - w - 1] + 2 * gb[i - 1] + gb[i + w - 1]);
+        const gy = (gb[i + w - 1] + 2 * gb[i + w] + gb[i + w + 1]) - (gb[i - w - 1] + 2 * gb[i - w] + gb[i - w + 1]);
+        const m = Math.hypot(gx, gy); mag[i] = m; ang[i] = Math.atan2(gy, gx); if (m > maxMag) maxMag = m;
+      }
+      // threshold at the top ~6% of magnitudes
+      const hist = new Int32Array(256); const hs = 255 / (maxMag || 1);
+      for (let i = 0; i < mag.length; i++) hist[Math.min(255, Math.round(mag[i] * hs))]++;
+      let acc = 0, thr = 255; const want = mag.length * 0.06;
+      for (let b = 255; b >= 0; b--) { acc += hist[b]; if (acc >= want) { thr = b / hs; break; } }
+      thr = Math.max(thr, 25);
+      // Hough: theta 0..179 (degrees), normal-form rho = x cos + y sin
+      const D = Math.ceil(Math.hypot(w, h)); const nR = 2 * D + 1; const nT = 180;
+      const A = new Int32Array(nT * nR);
+      const cosT = new Float32Array(nT), sinT = new Float32Array(nT);
+      for (let t = 0; t < nT; t++) { cosT[t] = Math.cos(t * Math.PI / 180); sinT[t] = Math.sin(t * Math.PI / 180); }
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x; if (mag[i] < thr) continue;
+        let phi = Math.round(ang[i] * 180 / Math.PI); // normal direction of the edge
+        if (phi < 0) phi += 180; if (phi >= 180) phi -= 180;
+        for (let dt = -8; dt <= 8; dt++) {
+          let t = phi + dt; if (t < 0) t += 180; if (t >= 180) t -= 180;
+          const r = Math.round(x * cosT[t] + y * sinT[t]) + D;
+          if (r >= 0 && r < nR) A[t * nR + r]++;
+        }
+      }
+      // gather peaks, non-max suppression
+      const isHoriz = (t) => Math.abs(t - 90) <= 28;           // normal near vertical => line near horizontal
+      const isVert = (t) => t <= 28 || t >= 152;
+      const cells = [];
+      const minVotes = Math.max(12, Math.round(Math.min(w, h) * 0.12));
+      for (let t = 0; t < nT; t++) { if (!isHoriz(t) && !isVert(t)) continue; for (let r = 0; r < nR; r++) { const v = A[t * nR + r]; if (v >= minVotes) cells.push({ t, r, v }); } }
+      cells.sort((a, b) => b.v - a.v);
+      const peaks = [];
+      for (const cnd of cells) {
+        if (peaks.length > 80) break;
+        let ok = true;
+        for (const p of peaks) { const dt = Math.min(Math.abs(p.t - cnd.t), 180 - Math.abs(p.t - cnd.t)); if (dt <= 4 && Math.abs(p.r - cnd.r) <= Math.max(6, Math.min(w, h) * 0.03)) { ok = false; break; } }
+        if (ok) peaks.push(cnd);
+      }
+      const cx = w / 2, cy = h / 2;
+      const lines = peaks.map(p => {
+        const theta = p.t * Math.PI / 180, rho = p.r - D;
+        const kind = isHoriz(p.t) ? 'h' : 'v';
+        const pos = kind === 'h' ? (rho - cx * Math.cos(theta)) / Math.sin(theta) : (rho - cy * Math.sin(theta)) / Math.cos(theta);
+        return { theta, rho: rho / sc, score: p.v, kind, pos: pos / sc };
+      });
+      // pick outermost strong line per side
+      const pick = (kind, side) => {
+        const lim = kind === 'h' ? H : W;
+        const cands = lines.filter(l => l.kind === kind && (side === 0 ? (l.pos < lim * 0.5 && l.pos > lim * 0.01) : (l.pos > lim * 0.5 && l.pos < lim * 0.99)));
+        if (!cands.length) return null;
+        const best = Math.max(...cands.map(l => l.score));
+        const strong = cands.filter(l => l.score >= best * 0.4);
+        strong.sort((a, b) => side === 0 ? a.pos - b.pos : b.pos - a.pos);
+        return strong[0];
+      };
+      const top = pick('h', 0), bottom = pick('h', 1), left = pick('v', 0), right = pick('v', 1);
+      const inset = 0.03;
+      const fallback = { top: { theta: Math.PI / 2, rho: H * inset }, bottom: { theta: Math.PI / 2, rho: H * (1 - inset) }, left: { theta: 0, rho: W * inset }, right: { theta: 0, rho: W * (1 - inset) } };
+      const L = { top: top || fallback.top, bottom: bottom || fallback.bottom, left: left || fallback.left, right: right || fallback.right };
+      const inter = (a, b) => {
+        const det = Math.cos(a.theta) * Math.sin(b.theta) - Math.sin(a.theta) * Math.cos(b.theta);
+        if (Math.abs(det) < 1e-6) return null;
+        return { x: (a.rho * Math.sin(b.theta) - b.rho * Math.sin(a.theta)) / det, y: (b.rho * Math.cos(a.theta) - a.rho * Math.cos(b.theta)) / det };
+      };
+      let quad = [inter(L.top, L.left), inter(L.top, L.right), inter(L.bottom, L.right), inter(L.bottom, L.left)];
+      const okPt = (p) => p && p.x > -W * 0.1 && p.x < W * 1.1 && p.y > -H * 0.1 && p.y < H * 1.1;
+      const detected = !!(top || bottom || left || right);
+      if (!quad.every(okPt)) quad = null;
+      if (quad) quad = quad.map(p => ({ x: Math.min(W, Math.max(0, p.x)), y: Math.min(H, Math.max(0, p.y)) }));
+      return { quad, lines, detected, W, H };
+    };
+
+    // Snap a point to the strongest nearby line whose direction matches the edge direction
+    const snapPoint = (p, neighbour, lines, W, H) => {
+      const tol = Math.max(W, H) * 0.035;
+      const edgeAng = Math.atan2(neighbour.y - p.y, neighbour.x - p.x);
+      let best = null, bestScore = 0;
+      for (const l of lines) {
+        const dist = Math.abs(p.x * Math.cos(l.theta) + p.y * Math.sin(l.theta) - l.rho);
+        if (dist > tol) continue;
+        // line direction is theta + 90deg
+        let dAng = Math.abs(((edgeAng - (l.theta + Math.PI / 2)) % Math.PI + Math.PI) % Math.PI);
+        dAng = Math.min(dAng, Math.PI - dAng);
+        if (dAng > 14 * Math.PI / 180) continue;
+        const s = l.score * (1 - dist / tol * 0.5);
+        if (s > bestScore) { bestScore = s; best = l; }
+      }
+      if (!best) return p;
+      const d = p.x * Math.cos(best.theta) + p.y * Math.sin(best.theta) - best.rho;
+      return { x: p.x - d * Math.cos(best.theta), y: p.y - d * Math.sin(best.theta) };
+    };
+
+    // ---------- Perspective warp ----------
+    const solveHomography = (src, dst) => {
+      // find H mapping dst -> src (so we can inverse-sample), 8 unknowns
+      const M = [], b = [];
+      for (let i = 0; i < 4; i++) {
+        const { x: X, y: Y } = dst[i], { x: x, y: y } = src[i];
+        M.push([X, Y, 1, 0, 0, 0, -X * x, -Y * x]); b.push(x);
+        M.push([0, 0, 0, X, Y, 1, -X * y, -Y * y]); b.push(y);
+      }
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        let piv = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[piv][i])) piv = r;
+        [M[i], M[piv]] = [M[piv], M[i]]; [b[i], b[piv]] = [b[piv], b[i]];
+        const d = M[i][i] || 1e-9;
+        for (let r = i + 1; r < n; r++) { const f = M[r][i] / d; for (let cc = i; cc < n; cc++) M[r][cc] -= f * M[i][cc]; b[r] -= f * b[i]; }
+      }
+      const hh = new Array(n).fill(0);
+      for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let cc = i + 1; cc < n; cc++) s -= M[i][cc] * hh[cc]; hh[i] = s / (M[i][i] || 1e-9); }
+      return [hh[0], hh[1], hh[2], hh[3], hh[4], hh[5], hh[6], hh[7], 1];
+    };
+    const warpQuad = (canvas, quad, maxDim = 1800) => {
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      let outW = Math.round(Math.max(dist(quad[0], quad[1]), dist(quad[3], quad[2])));
+      let outH = Math.round(Math.max(dist(quad[0], quad[3]), dist(quad[1], quad[2])));
+      const s = Math.min(1, maxDim / Math.max(outW, outH));
+      outW = Math.max(2, Math.round(outW * s)); outH = Math.max(2, Math.round(outH * s));
+      const Hm = solveHomography(quad, [{ x: 0, y: 0 }, { x: outW, y: 0 }, { x: outW, y: outH }, { x: 0, y: outH }]);
+      const sw = canvas.width, sh = canvas.height;
+      const sd = canvas.getContext('2d').getImageData(0, 0, sw, sh).data;
+      const out = document.createElement('canvas'); out.width = outW; out.height = outH;
+      const octx = out.getContext('2d');
+      const od = octx.createImageData(outW, outH); const o = od.data;
+      for (let Y = 0; Y < outH; Y++) {
+        for (let X = 0; X < outW; X++) {
+          const den = Hm[6] * X + Hm[7] * Y + 1;
+          const x = (Hm[0] * X + Hm[1] * Y + Hm[2]) / den, y = (Hm[3] * X + Hm[4] * Y + Hm[5]) / den;
+          const oi = (Y * outW + X) * 4;
+          if (x < 0 || y < 0 || x >= sw - 1 || y >= sh - 1) { o[oi] = o[oi + 1] = o[oi + 2] = 255; o[oi + 3] = 255; continue; }
+          const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
+          const i00 = (y0 * sw + x0) * 4, i10 = i00 + 4, i01 = i00 + sw * 4, i11 = i01 + 4;
+          for (let ch = 0; ch < 3; ch++) {
+            const v = sd[i00 + ch] * (1 - fx) * (1 - fy) + sd[i10 + ch] * fx * (1 - fy) + sd[i01 + ch] * (1 - fx) * fy + sd[i11 + ch] * fx * fy;
+            o[oi + ch] = v;
+          }
+          o[oi + 3] = 255;
+        }
+      }
+      octx.putImageData(od, 0, 0);
+      return out;
+    };
+    // Document-style enhancement: divide by local mean so paper goes white and ink stays dark
+    const enhanceCanvas = (canvas) => {
+      const w = canvas.width, h = canvas.height;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.getImageData(0, 0, w, h); const d = img.data;
+      const g = new Float32Array(w * h);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const I = new Float64Array((w + 1) * (h + 1));
+      for (let y = 1; y <= h; y++) { let rs = 0; for (let x = 1; x <= w; x++) { rs += g[(y - 1) * w + x - 1]; I[y * (w + 1) + x] = I[(y - 1) * (w + 1) + x] + rs; } }
+      const R = Math.max(8, Math.round(Math.max(w, h) / 24));
+      const out = document.createElement('canvas'); out.width = w; out.height = h;
+      const octx = out.getContext('2d'); const od = octx.createImageData(w, h); const o = od.data;
+      for (let y = 0; y < h; y++) {
+        const y0 = Math.max(0, y - R), y1 = Math.min(h, y + R + 1);
+        for (let x = 0; x < w; x++) {
+          const x0 = Math.max(0, x - R), x1 = Math.min(w, x + R + 1);
+          const area = (y1 - y0) * (x1 - x0);
+          const mean = (I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0]) / area;
+          let v = g[y * w + x] / (mean + 4) * 232;
+          v = v > 255 ? 255 : v; v = (v - 128) * 1.15 + 128; v = v < 0 ? 0 : v > 255 ? 255 : v;
+          const oi = (y * w + x) * 4; o[oi] = o[oi + 1] = o[oi + 2] = v; o[oi + 3] = 255;
+        }
+      }
+      octx.putImageData(od, 0, 0);
+      return out;
+    };
+
+    // ---------- Anthropic ----------
+    const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+    const EXTRACT_SCHEMA = {
+      type: 'object', additionalProperties: false,
+      properties: {
+        merchant: { type: ['string', 'null'], description: 'Business name as printed, cleaned of address and ABN' },
+        date: { type: ['string', 'null'], description: 'Purchase date as YYYY-MM-DD. Australian receipts print dd/mm/yyyy.' },
+        total: { type: ['number', 'null'], description: 'Final amount paid including tax' },
+        gst: { type: ['number', 'null'], description: 'GST or tax amount if printed, else null' },
+        currency: { type: 'string', description: 'ISO code, AUD unless clearly otherwise' },
+        category: { type: ['string', 'null'], description: 'One of the allowed categories, or null if none fits' },
+        suggested_tags: { type: 'array', items: { type: 'string' }, description: 'Subset of the allowed tags that clearly apply' },
+        items_summary: { type: 'string', description: 'One line: what was bought, main items only' },
+        warranty_note: { type: ['string', 'null'], description: 'Any warranty period or product serial printed on the receipt, else null' },
+        confidence: {
+          type: 'object', additionalProperties: false,
+          properties: { merchant: { type: 'string', enum: ['high', 'low'] }, date: { type: 'string', enum: ['high', 'low'] }, total: { type: 'string', enum: ['high', 'low'] }, category: { type: 'string', enum: ['high', 'low'] } },
+          required: ['merchant', 'date', 'total', 'category']
+        }
+      },
+      required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'confidence']
+    };
+    const extractReceipt = async (pageDataUrls, apiKey, categories, tags) => {
+      if (!apiKey) { const e = new Error('No API key. Add one in Settings.'); e.kind = 'no_key'; throw e; }
+      const content = [];
+      pageDataUrls.forEach((u, i) => {
+        const m = u.match(/^data:([^;]+);base64,(.+)$/);
+        content.push({ type: 'text', text: `Page ${i + 1} of ${pageDataUrls.length}:` });
+        content.push({ type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } });
+      });
+      content.push({ type: 'text', text:
+        `These are pages of one receipt photographed in Australia. Extract the fields.\n` +
+        `Allowed categories: ${categories.join(', ')}. Allowed tags: ${tags.join(', ')}.\n` +
+        `Mark a field's confidence "low" when the print is faint, partly cut off, ambiguous, or you had to guess. ` +
+        `Dates in Australia are day first. If a field is not on the receipt at all, return null and mark it low.` });
+      let resp;
+      try {
+        resp = await fetch(ANTHROPIC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({
+            model: 'claude-opus-5',
+            max_tokens: 4000,
+            output_config: { effort: 'low', format: { type: 'json_schema', schema: EXTRACT_SCHEMA } },
+            messages: [{ role: 'user', content }]
+          })
+        });
+      } catch (ne) { const e = new Error('Network request failed. Are you online?'); e.kind = 'network'; throw e; }
+      if (!resp.ok) {
+        let msg = ''; try { const j = await resp.json(); msg = (j.error && j.error.message) || ''; } catch (_) {}
+        const e = new Error(msg || `HTTP ${resp.status}`); e.kind = 'http'; e.status = resp.status; throw e;
+      }
+      const j = await resp.json();
+      const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+      try { return JSON.parse(text); }
+      catch (_) { const m = text.match(/\{[\s\S]*\}/); if (m) { try { return JSON.parse(m[0]); } catch (__) {} } const e = new Error('The model returned something that was not JSON.'); e.kind = 'bad_response'; throw e; }
+    };
+
+    // ---------- Zip (store only) writer and reader ----------
+    const crcTable = (() => { const t = new Int32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
+    const crc32 = (u8) => { let c = -1; for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+    const dosTime = (d) => ({ t: ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xffff, d: (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff });
+    const makeZip = (entries) => { // entries: [{name, data: Uint8Array}]
+      const enc = new TextEncoder(); const parts = []; const central = []; let off = 0; const now = dosTime(new Date());
+      for (const e of entries) {
+        const name = enc.encode(e.name); const crc = crc32(e.data); const n = e.data.length;
+        const lh = new DataView(new ArrayBuffer(30));
+        lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+        lh.setUint16(10, now.t, true); lh.setUint16(12, now.d, true); lh.setUint32(14, crc, true); lh.setUint32(18, n, true); lh.setUint32(22, n, true);
+        lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+        parts.push(new Uint8Array(lh.buffer), name, e.data);
+        const ch = new DataView(new ArrayBuffer(46));
+        ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+        ch.setUint16(12, now.t, true); ch.setUint16(14, now.d, true); ch.setUint32(16, crc, true); ch.setUint32(20, n, true); ch.setUint32(24, n, true);
+        ch.setUint16(28, name.length, true); ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint16(36, 0, true); ch.setUint32(38, 0, true); ch.setUint32(42, off, true);
+        central.push(new Uint8Array(ch.buffer), name);
+        off += 30 + name.length + n;
+      }
+      const cdStart = off; let cdLen = 0; central.forEach(p => cdLen += p.length);
+      const eo = new DataView(new ArrayBuffer(22));
+      eo.setUint32(0, 0x06054b50, true); eo.setUint16(4, 0, true); eo.setUint16(6, 0, true); eo.setUint16(8, entries.length, true); eo.setUint16(10, entries.length, true); eo.setUint32(12, cdLen, true); eo.setUint32(16, cdStart, true); eo.setUint16(20, 0, true);
+      return new Blob([...parts, ...central, new Uint8Array(eo.buffer)], { type: 'application/zip' });
+    };
+    const readZip = async (buf) => { // returns [{name, data: Uint8Array}] supports store and deflate
+      const u8 = new Uint8Array(buf); const dv = new DataView(buf); const dec = new TextDecoder();
+      let eocd = -1;
+      for (let i = u8.length - 22; i >= Math.max(0, u8.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      if (eocd < 0) throw new Error('Not a zip file');
+      const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true);
+      const out = [];
+      for (let k = 0; k < count; k++) {
+        if (dv.getUint32(p, true) !== 0x02014b50) break;
+        const method = dv.getUint16(p + 10, true); const csize = dv.getUint32(p + 20, true);
+        const nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true); const lho = dv.getUint32(p + 42, true);
+        const name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+        const lnl = dv.getUint16(lho + 26, true), lel = dv.getUint16(lho + 28, true);
+        const start = lho + 30 + lnl + lel; const raw = u8.slice(start, start + csize);
+        let data = raw;
+        if (method === 8) { const ds = new DecompressionStream('deflate-raw'); const w = ds.writable.getWriter(); w.write(raw); w.close(); data = new Uint8Array(await new Response(ds.readable).arrayBuffer()); }
+        else if (method !== 0) throw new Error('Unsupported zip compression');
+        out.push({ name, data });
+        p += 46 + nl + el + cl;
+      }
+      return out;
+    };
+
+    // ---------- Google Drive (optional) ----------
+    const DRIVE_FOLDER = 'Receipts App';
+    const gis = { token: null, exp: 0, client: null };
+    const loadGIS = () => new Promise((res, rej) => {
+      if (window.google && google.accounts) return res();
+      const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      s.onload = () => res(); s.onerror = () => rej(new Error('Could not load Google sign-in script')); document.head.appendChild(s);
+    });
+    const driveToken = async (clientId, interactive = true) => {
+      if (gis.token && Date.now() < gis.exp - 60000) return gis.token;
+      try { const c = JSON.parse(sessionStorage.getItem('receipts_gtoken') || 'null'); if (c && Date.now() < c.exp - 60000) { gis.token = c.token; gis.exp = c.exp; return c.token; } } catch (_) {}
+      if (!interactive) throw new Error('Not signed in to Google');
+      await loadGIS();
+      return new Promise((res, rej) => {
+        gis.client = google.accounts.oauth2.initTokenClient({
+          client_id: clientId, scope: 'https://www.googleapis.com/auth/drive.file',
+          callback: (r) => { if (r.error) return rej(new Error(r.error_description || r.error)); gis.token = r.access_token; gis.exp = Date.now() + (r.expires_in || 3600) * 1000; try { sessionStorage.setItem('receipts_gtoken', JSON.stringify({ token: gis.token, exp: gis.exp })); } catch (_) {} res(gis.token); },
+          error_callback: (e) => rej(new Error(e && e.message ? e.message : 'Google sign-in was cancelled'))
+        });
+        gis.client.requestAccessToken({ prompt: '' });
+      });
+    };
+    const dfetch = async (token, url, opts = {}) => {
+      const r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+      if (!r.ok) { let m = ''; try { m = (await r.json()).error.message; } catch (_) {} throw new Error(m || `Drive HTTP ${r.status}`); }
+      return r;
+    };
+    const driveFolder = async (token) => {
+      const q = encodeURIComponent(`name='${DRIVE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+      const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`)).json();
+      if (j.files && j.files.length) return j.files[0].id;
+      const c = await (await dfetch(token, 'https://www.googleapis.com/drive/v3/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: DRIVE_FOLDER, mimeType: 'application/vnd.google-apps.folder' }) })).json();
+      return c.id;
+    };
+    const driveList = async (token, folderId) => {
+      let files = [], pageToken = '';
+      do {
+        const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+        const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,modifiedTime,size)&pageSize=1000${pageToken ? '&pageToken=' + pageToken : ''}`)).json();
+        files = files.concat(j.files || []); pageToken = j.nextPageToken || '';
+      } while (pageToken);
+      return files;
+    };
+    const driveUpload = async (token, folderId, name, blob, existingId) => {
+      const meta = existingId ? {} : { name, parents: [folderId] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+      form.append('file', blob);
+      const url = existingId ? `https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+      const j = await (await dfetch(token, url, { method: existingId ? 'PATCH' : 'POST', body: form })).json();
+      return j.id;
+    };
+    const driveDownload = async (token, id) => (await dfetch(token, `https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).blob();
+
+    // ---------- Export / import helpers ----------
+    const csvEscape = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const buildCSV = (receipts) => {
+      const rows = [['id', 'date', 'merchant', 'total', 'gst', 'currency', 'category', 'tags', 'items', 'comments', 'pages', 'needs_review']];
+      receipts.forEach(r => rows.push([r.id, r.date, r.merchant, r.total, r.gst, r.currency, r.category, (r.tags || []).join('; '), r.items, r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
+      return rows.map(r => r.map(csvEscape).join(',')).join('\n');
+    };
+    const buildExportZip = async (receipts, settings) => {
+      const enc = new TextEncoder();
+      const entries = [
+        { name: 'receipts.json', data: enc.encode(JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) }, null, 2)) },
+        { name: 'receipts.csv', data: enc.encode(buildCSV(receipts)) }
+      ];
+      for (const r of receipts) for (const pid of (r.pages || [])) {
+        const blob = await dbGetImageBlob(pid);
+        if (blob) entries.push({ name: `images/${pid}.jpg`, data: new Uint8Array(await blob.arrayBuffer()) });
+      }
+      return makeZip(entries);
+    };
+    const makeThumb = async (blob) => { const c = await blobToCanvas(blob, 220); return c.toDataURL('image/jpeg', 0.7); };
+    const importData = async (file, existing) => {
+      let manifest = null, images = [];
+      if (/\.zip$/i.test(file.name) || file.type === 'application/zip') {
+        const entries = await readZip(await file.arrayBuffer());
+        const mj = entries.find(e => e.name === 'receipts.json'); if (!mj) throw new Error('receipts.json missing from zip');
+        manifest = JSON.parse(new TextDecoder().decode(mj.data));
+        images = entries.filter(e => /^images\/.+\.jpg$/i.test(e.name));
+      } else {
+        manifest = JSON.parse(await file.text());
+      }
+      const list = manifest.receipts || []; const have = new Set(existing.map(r => r.id));
+      let added = 0, updated = 0;
+      for (const im of images) {
+        const id = im.name.replace(/^images\//, '').replace(/\.jpg$/i, '');
+        await dbPut('images', { id, blob: new Blob([im.data], { type: 'image/jpeg' }) });
+      }
+      for (const r of list) {
+        const cur = existing.find(x => x.id === r.id);
+        if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
+        let thumb = r.thumb || null;
+        if (!thumb && r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }
+        await dbPut('receipts', { ...r, thumb });
+        if (have.has(r.id)) updated++; else added++;
+      }
+      return { added, updated, categories: manifest.categories || [], tags: manifest.tags || [] };
+    };
+    const downloadBlob = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
+    const shareOrDownload = async (blob, name) => {
+      const f = new File([blob], name, { type: blob.type });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f], title: name }); return 'shared'; } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; } }
+      downloadBlob(blob, name); return 'downloaded';
+    };
+
+    // ---------- In-app camera (getUserMedia; never the system camera intent) ----------
+    const cameraErrMsg = (e) => {
+      const n = e && e.name;
+      if (n === 'NotAllowedError' || n === 'SecurityError') return 'Camera access is blocked. Allow the camera for this site in Chrome settings, then reopen.';
+      if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'No usable camera was found on this device.';
+      if (n === 'NotReadableError') return 'The camera is busy in another app. Close other camera apps and try again.';
+      return (e && e.message) ? e.message : 'Could not start the camera.';
+    };
+    function InAppCamera({ onCapture, onCancel, onPick, pageNo, settings, setSettings }) {
+      const videoRef = useRef(null); const streamRef = useRef(null);
+      const [cams, setCams] = useState([]); const [camIdx, setCamIdx] = useState(0);
+      const [ready, setReady] = useState(false); const [err, setErr] = useState(null); const [busy, setBusy] = useState(false);
+      const [canTapFocus, setCanTapFocus] = useState(false); const [reticle, setReticle] = useState(null);
+      const [torch, setTorch] = useState(null);
+      const stopStream = () => { if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; } };
+      const tuneFocus = (stream) => {
+        try {
+          const track = stream.getVideoTracks()[0]; const caps = track.getCapabilities ? track.getCapabilities() : {};
+          if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+          setCanTapFocus(!!(caps.focusMode || caps.pointsOfInterest));
+          setTorch(caps.torch ? false : null);
+        } catch (_) {}
+      };
+      const open = async (deviceId) => {
+        stopStream();
+        const base = { width: { ideal: 2560 }, height: { ideal: 1440 }, advanced: [{ focusMode: 'continuous' }] };
+        const video = deviceId ? { ...base, deviceId: { exact: deviceId } } : { ...base, facingMode: { ideal: 'environment' } };
+        const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; try { await videoRef.current.play(); } catch (_) {} }
+        tuneFocus(stream); return stream;
+      };
+      const pickMain = (list) => { const idxOf = (l) => { const m = (l || '').match(/camera2 (\d+)/i); return m ? +m[1] : 999; }; let best = 0, bn = Infinity; list.forEach((d, i) => { const n = idxOf(d.label); if (n < bn) { bn = n; best = i; } }); return best; };
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const s = await open(null);
+            if (cancelled) { stopStream(); return; }
+            let list = [];
+            try { const all = await navigator.mediaDevices.enumerateDevices(); const vids = all.filter(d => d.kind === 'videoinput'); const backs = vids.filter(d => /back|rear|environment/i.test(d.label)); list = backs.length ? backs : vids; } catch (_) {}
+            if (cancelled) { stopStream(); return; }
+            if (list.length > 1) {
+              const saved = settings.cameraDevice;
+              let target = saved ? list.findIndex(d => d.deviceId === saved) : -1;
+              if (target < 0) target = pickMain(list);
+              setCams(list); setCamIdx(target);
+              let curId = null; try { curId = s.getVideoTracks()[0].getSettings().deviceId; } catch (_) {}
+              if (list[target].deviceId && list[target].deviceId !== curId) { try { await open(list[target].deviceId); } catch (_) { try { await open(null); } catch (__) {} } }
+            } else setCams(list);
+            if (!cancelled) setReady(true);
+          } catch (e) { if (!cancelled) setErr(cameraErrMsg(e)); }
+        })();
+        return () => { cancelled = true; stopStream(); };
+      }, []);
+      const switchCam = async () => {
+        if (cams.length < 2 || busy) return;
+        const next = (camIdx + 1) % cams.length; setCamIdx(next); setReady(false);
+        try { await open(cams[next].deviceId); setSettings(s => ({ ...s, cameraDevice: cams[next].deviceId })); setReady(true); } catch (e) { setErr(cameraErrMsg(e)); }
+      };
+      const toggleTorch = async () => {
+        if (torch === null || !streamRef.current) return;
+        try { await streamRef.current.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: !torch }] }); setTorch(!torch); } catch (_) {}
+      };
+      const tapFocus = async (e) => {
+        if (!canTapFocus || !streamRef.current || !videoRef.current) return;
+        const track = streamRef.current.getVideoTracks()[0]; const rect = videoRef.current.getBoundingClientRect();
+        const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        setReticle({ x: cx, y: cy, ts: Date.now() }); setTimeout(() => setReticle(r => (r && Date.now() - r.ts >= 950) ? null : r), 1000);
+        try {
+          const caps = track.getCapabilities ? track.getCapabilities() : {}; const advanced = [];
+          if (caps.pointsOfInterest) advanced.push({ pointsOfInterest: [{ x: cx / rect.width, y: cy / rect.height }] });
+          if (caps.focusMode && caps.focusMode.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
+          if (advanced.length) await track.applyConstraints({ advanced });
+        } catch (_) {}
+      };
+      const capture = async () => {
+        if (!videoRef.current || !ready || busy) return;
+        setBusy(true);
+        try {
+          const v = videoRef.current; const w = v.videoWidth, h = v.videoHeight;
+          if (!w || !h) throw new Error('camera not ready yet');
+          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+          stopStream();
+          onCapture(canvas);
+        } catch (e) { setErr(cameraErrMsg(e)); setBusy(false); }
+      };
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
+          {err ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: 24, textAlign: 'center', gap: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Camera unavailable</div>
+              <div style={{ fontSize: 13, opacity: 0.85 }}>{err}</div>
+              <label className="btn" style={{ background: '#fff', color: '#000' }}>Choose a photo instead<input type="file" accept="image/*" hidden onChange={e => e.target.files[0] && onPick(e.target.files[0])} /></label>
+              <button onClick={onCancel} style={{ background: 'transparent', color: '#fff', border: '1px solid #666', borderRadius: 10, padding: '10px 20px' }}>Close</button>
+            </div>
+          ) : (
+            <>
+              <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onClick={tapFocus}>
+                <video ref={videoRef} playsInline muted autoPlay style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
+                {!ready && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>Starting camera...</div>}
+                {busy && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff' }}>Capturing...</div>}
+                {reticle && <div style={{ position: 'absolute', left: reticle.x - 30, top: reticle.y - 30, width: 60, height: 60, border: '2px solid #fff', borderRadius: 4, pointerEvents: 'none', animation: 'focusPulse 0.9s ease-out forwards' }} />}
+                <div style={{ position: 'absolute', top: 'calc(10px + var(--safe-t))', left: 0, right: 0, textAlign: 'center', color: '#fff', fontSize: 13, opacity: 0.85, pointerEvents: 'none' }}>Page {pageNo}</div>
+                {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 11, pointerEvents: 'none' }}>Fill the frame with the receipt on a plain background{canTapFocus ? ' · tap to focus' : ''}</div>}
+              </div>
+              <div style={{ padding: '16px 20px calc(24px + var(--safe-b))', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 74 }}>
+                  <button onClick={() => { stopStream(); onCancel(); }} style={{ background: 'transparent', color: '#fff', border: 'none', fontSize: 15, padding: '8px 0', textAlign: 'left' }}>Cancel</button>
+                  <label style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>Gallery<input type="file" accept="image/*" hidden onChange={e => { if (e.target.files[0]) { stopStream(); onPick(e.target.files[0]); } }} /></label>
+                </div>
+                <button onClick={capture} disabled={!ready || busy} style={{ width: 72, height: 72, borderRadius: 36, background: '#fff', border: '4px solid rgba(255,255,255,0.4)', opacity: ready && !busy ? 1 : 0.4 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', minWidth: 74 }}>
+                  {cams.length > 1 && <button onClick={switchCam} disabled={busy} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 18, padding: '8px 12px', fontSize: 12 }}>Lens {camIdx + 1}/{cams.length}</button>}
+                  {torch !== null && <button onClick={toggleTorch} style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.15)', color: torch ? '#000' : '#fff', border: 'none', borderRadius: 18, padding: '8px 12px', fontSize: 12 }}>Light</button>}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // ---------- Crop editor with draggable corners and snap-to-edge ----------
+    function CropEditor({ canvas, onDone, onRetake, enhanceDefault }) {
+      const [det, setDet] = useState(null);
+      const [quad, setQuad] = useState(null);
+      const [preview, setPreview] = useState(null);
+      const [size, setSize] = useState({ w: 1, h: 1 });
+      const [busy, setBusy] = useState(false);
+      const [enhance, setEnhance] = useState(enhanceDefault);
+      const [result, setResult] = useState(null); // {colour: canvas, enhanced: canvas}
+      const wrapRef = useRef(null); const dragRef = useRef(null);
+      useEffect(() => {
+        const d = detectReceipt(canvas);
+        const q = d.quad || [{ x: canvas.width * 0.05, y: canvas.height * 0.05 }, { x: canvas.width * 0.95, y: canvas.height * 0.05 }, { x: canvas.width * 0.95, y: canvas.height * 0.95 }, { x: canvas.width * 0.05, y: canvas.height * 0.95 }];
+        setDet(d); setQuad(q); setPreview(scaleCanvas(canvas, 1200, 0.8));
+      }, [canvas]);
+      useEffect(() => {
+        const el = wrapRef.current; if (!el) return;
+        const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight })); ro.observe(el); return () => ro.disconnect();
+      }, [preview]);
+      const sx = size.w / canvas.width, sy = size.h / canvas.height;
+      const onDown = (i) => (e) => { e.preventDefault(); dragRef.current = { i, id: e.pointerId }; e.currentTarget.setPointerCapture(e.pointerId); };
+      const onMove = (e) => {
+        if (!dragRef.current || dragRef.current.id !== e.pointerId) return;
+        const r = wrapRef.current.getBoundingClientRect();
+        const x = Math.min(canvas.width, Math.max(0, (e.clientX - r.left) / sx)), y = Math.min(canvas.height, Math.max(0, (e.clientY - r.top) / sy));
+        setQuad(q => q.map((p, k) => k === dragRef.current.i ? { x, y } : p));
+      };
+      const onUp = (e) => {
+        if (!dragRef.current || dragRef.current.id !== e.pointerId) return;
+        const i = dragRef.current.i; dragRef.current = null;
+        setQuad(q => {
+          if (!det || !det.lines.length) return q;
+          const prev = q[(i + 3) % 4], next = q[(i + 1) % 4];
+          let p = snapPoint(q[i], next, det.lines, canvas.width, canvas.height);
+          p = snapPoint(p, prev, det.lines, canvas.width, canvas.height);
+          return q.map((pt, k) => k === i ? p : pt);
+        });
+      };
+      const reset = () => setQuad([{ x: 0, y: 0 }, { x: canvas.width, y: 0 }, { x: canvas.width, y: canvas.height }, { x: 0, y: canvas.height }]);
+      const apply = () => {
+        setBusy(true);
+        setTimeout(() => {
+          try {
+            const colour = warpQuad(canvas, quad, 1800);
+            const enhanced = enhanceCanvas(colour);
+            setResult({ colour, enhanced, colourUrl: scaleCanvas(colour, 1000, 0.8), enhancedUrl: scaleCanvas(enhanced, 1000, 0.8) });
+          } finally { setBusy(false); }
+        }, 30);
+      };
+      const finish = async () => {
+        setBusy(true);
+        const c = enhance ? result.enhanced : result.colour;
+        const blob = await canvasToBlob(c, 0.86);
+        onDone(blob, enhance);
+      };
+      if (!preview) return <div className="sheet" style={{ background: '#000' }} />;
+      if (result) return (
+        <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, overflow: 'hidden' }}>
+            <img src={enhance ? result.enhancedUrl : result.colourUrl} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
+          </div>
+          <div style={{ padding: '10px 16px calc(20px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="seg" style={{ borderColor: '#444' }}>
+              <button className={enhance ? 'on' : ''} style={{ background: enhance ? '#fff' : '#222', color: enhance ? '#000' : '#fff' }} onClick={() => setEnhance(true)}>Enhanced</button>
+              <button className={!enhance ? 'on' : ''} style={{ background: !enhance ? '#fff' : '#222', color: !enhance ? '#000' : '#fff' }} onClick={() => setEnhance(false)}>Colour</button>
+            </div>
+            <div className="row">
+              <button className="btn" style={{ background: '#222', color: '#fff', borderColor: '#444' }} onClick={() => setResult(null)}>Adjust crop</button>
+              <button className="btn primary grow" onClick={finish} disabled={busy}>{busy ? 'Saving...' : 'Use this page'}</button>
+            </div>
+          </div>
+        </div>
+      );
+      const pts = quad ? quad.map(p => `${p.x * sx},${p.y * sy}`).join(' ') : '';
+      return (
+        <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={onRetake} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Retake</button>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>{det && det.detected ? 'Edges found. Drag corners to adjust.' : 'Drag the corners to the receipt edges.'}</div>
+            <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Full</button>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '22px 22px', overflow: 'hidden' }}>
+            <div ref={wrapRef} className="crop-wrap" style={{ maxHeight: '100%', maxWidth: '100%', aspectRatio: `${canvas.width} / ${canvas.height}`, width: canvas.width >= canvas.height ? '100%' : 'auto', height: canvas.width >= canvas.height ? 'auto' : '100%' }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+              <img src={preview} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
+              {quad && <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="none">
+                <polygon points={pts} fill="rgba(31,58,95,0.18)" stroke="#fff" strokeWidth="2" />
+              </svg>}
+              {quad && quad.map((p, i) => <div key={i} className="handle" style={{ left: p.x * sx, top: p.y * sy }} onPointerDown={onDown(i)} />)}
+            </div>
+          </div>
+          <div style={{ padding: '10px 16px calc(20px + var(--safe-b))' }}>
+            <button className="btn primary wide" onClick={apply} disabled={busy}>{busy ? 'Straightening...' : 'Crop and clean up'}</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ---------- Capture flow: camera -> crop -> (more pages) -> extract -> review form ----------
+    function CaptureFlow({ settings, setSettings, onSaved, onCancel, existing }) {
+      // existing: receipt being edited to add pages to (optional)
+      const [stage, setStage] = useState('choose'); // choose | camera | crop | pages | extracting | review
+      const fileRef = useRef(null);
+      const [rawCanvas, setRawCanvas] = useState(null);
+      const [pages, setPages] = useState([]); // [{id, blob, url}]
+      const [err, setErr] = useState(null);
+      const [draft, setDraft] = useState(null);
+      const onCapture = (canvas) => { setRawCanvas(canvas); setStage('crop'); };
+      const onPick = async (file) => { try { const c = await fileToCanvas(file, 2400); setRawCanvas(c); setStage('crop'); } catch (e) { setErr('Could not read that image.'); setStage('pages'); } };
+      const onCropDone = async (blob) => {
+        const id = uid(); const url = URL.createObjectURL(blob);
+        setPages(p => [...p, { id, blob, url }]); setRawCanvas(null); setStage('pages');
+      };
+      const removePage = (id) => setPages(p => p.filter(x => x.id !== id));
+      const runExtract = async () => {
+        setStage('extracting'); setErr(null);
+        let data = null;
+        try {
+          const urls = [];
+          for (const p of pages) { const c = await blobToCanvas(p.blob, 1400); urls.push(c.toDataURL('image/jpeg', 0.8)); }
+          data = await extractReceipt(urls, settings.apiKey, settings.categories, settings.tags);
+        } catch (e) { setErr(e.kind === 'no_key' ? 'No API key set. Fill the details in by hand, or add a key in Settings.' : `Extraction failed: ${e.message}. Fill in the details by hand.`); }
+        const conf = (data && data.confidence) || {};
+        const unsure = [];
+        ['merchant', 'date', 'total', 'category'].forEach(f => { if (!data || conf[f] !== 'high' || data[f] === null) unsure.push(f); });
+        const cat = data && data.category && settings.categories.find(c => c.toLowerCase() === String(data.category).toLowerCase());
+        const tags = data && Array.isArray(data.suggested_tags) ? data.suggested_tags.map(t => settings.tags.find(x => x.toLowerCase() === String(t).toLowerCase())).filter(Boolean) : [];
+        setDraft({
+          id: uid(), merchant: (data && data.merchant) || '', date: (data && data.date) || todayISO(), total: data && data.total !== null && data.total !== undefined ? data.total : '',
+          gst: data && data.gst !== null && data.gst !== undefined ? data.gst : '', currency: (data && data.currency) || settings.currency, category: cat || '',
+          tags, comments: data && data.warranty_note ? `Warranty: ${data.warranty_note}` : '', items: (data && data.items_summary) || '',
+          unsure, needsReview: unsure.length > 0, createdAt: new Date().toISOString()
+        });
+        setStage('review');
+      };
+      const save = async (rec) => {
+        for (const p of pages) await dbPut('images', { id: p.id, blob: p.blob });
+        const thumb = pages.length ? await makeThumb(pages[0].blob) : null;
+        const full = { ...rec, pages: pages.map(p => p.id), thumb, updatedAt: new Date().toISOString() };
+        await dbPut('receipts', full);
+        pages.forEach(p => URL.revokeObjectURL(p.url));
+        onSaved(full);
+      };
+      const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gst: '', currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
+      if (stage === 'choose') return (
+        <div className="sheet">
+          <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
+          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button className="btn primary wide" style={{ padding: 16 }} onClick={() => setStage('camera')}>Take a photo</button>
+            <button className="btn wide" style={{ padding: 16 }} onClick={() => fileRef.current && fileRef.current.click()}>Choose from gallery</button>
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && onPick(e.target.files[0])} />
+            <button className="btn wide" style={{ padding: 16 }} onClick={skipExtract}>No image, enter details</button>
+            <div className="small muted" style={{ textAlign: 'center' }}>Pages can be added later from the receipt.</div>
+          </div>
+        </div>
+      );
+      if (stage === 'camera') return <InAppCamera pageNo={pages.length + 1} onCapture={onCapture} onPick={onPick} onCancel={() => pages.length ? setStage('pages') : setStage('choose')} settings={settings} setSettings={setSettings} />;
+      if (stage === 'crop' && rawCanvas) return <CropEditor canvas={rawCanvas} enhanceDefault={settings.enhanceDefault} onDone={onCropDone} onRetake={() => { setRawCanvas(null); setStage('camera'); }} />;
+      if (stage === 'extracting') return (
+        <div className="sheet" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 14 }}>
+          <div className="spinner dark" /><div className="muted">Reading the receipt...</div>
+        </div>
+      );
+      if (stage === 'review' && draft) return <ReceiptForm draft={draft} pages={pages} settings={settings} setSettings={setSettings} error={err} onSave={save} onCancel={() => pages.length ? setStage('pages') : setStage('choose')} onAddPage={() => setStage('camera')} onRemovePage={removePage} title="Check the details" />;
+      return (
+        <div className="sheet">
+          <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1>Pages</h1><span style={{ width: 70 }} /></div>
+          {err && <div className="banner err">{err}</div>}
+          <div className="card">
+            <div className="pages">
+              {pages.map((p, i) => (
+                <div key={p.id} style={{ position: 'relative' }}>
+                  <img src={p.url} />
+                  <div className="small" style={{ textAlign: 'center' }}>Page {i + 1}</div>
+                  <button onClick={() => removePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: var_red(), color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>
+                </div>
+              ))}
+              <button className="add" onClick={() => setStage('camera')}>+ Add page</button>
+            </div>
+          </div>
+          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button className="btn primary wide" disabled={!pages.length} onClick={runExtract}>Read receipt with Claude</button>
+            <button className="btn wide" onClick={skipExtract}>Enter details by hand</button>
+          </div>
+        </div>
+      );
+    }
+    const var_red = () => '#B23A3A';
+
+    // ---------- Receipt form (used for new and edit) ----------
+    function ReceiptForm({ draft, pages, settings, setSettings, error, onSave, onCancel, onAddPage, onRemovePage, title, onDelete }) {
+      const [r, setR] = useState(draft);
+      const [saving, setSaving] = useState(false);
+      const [newCat, setNewCat] = useState(''); const [newTag, setNewTag] = useState('');
+      const [armed, setArmed] = useState(false);
+      const set = (k, v) => setR(x => ({ ...x, [k]: v, unsure: (x.unsure || []).filter(f => f !== k) }));
+      const unsure = (k) => (r.unsure || []).includes(k);
+      const toggleTag = (t) => setR(x => ({ ...x, tags: x.tags.includes(t) ? x.tags.filter(y => y !== t) : [...x.tags, t] }));
+      const addCat = () => { const c = newCat.trim(); if (!c) return; if (!settings.categories.includes(c)) setSettings(s => ({ ...s, categories: [...s.categories, c] })); set('category', c); setNewCat(''); };
+      const addTag = () => { const t = newTag.trim(); if (!t) return; if (!settings.tags.includes(t)) setSettings(s => ({ ...s, tags: [...s.tags, t] })); setR(x => ({ ...x, tags: x.tags.includes(t) ? x.tags : [...x.tags, t] })); setNewTag(''); };
+      const doSave = async () => {
+        setSaving(true);
+        const out = { ...r, total: r.total === '' ? null : +r.total, gst: r.gst === '' ? null : +r.gst, needsReview: (r.unsure || []).length > 0 };
+        try { await onSave(out); } catch (e) { setSaving(false); alert('Save failed: ' + e.message); }
+      };
+      useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 3000); return () => clearTimeout(t); }, [armed]);
+      return (
+        <div className="sheet">
+          <div className="topbar"><button className="btn" onClick={onCancel}>Back</button><h1 style={{ fontSize: 18 }}>{title}</h1><button className="btn primary" onClick={doSave} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
+          {error && <div className="banner err">{error}</div>}
+          {(r.unsure || []).length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Highlighted fields need a check. They were faint, missing, or a guess.</div>}
+          <div className="card">
+            <div className="pages">
+              {pages.map((p, i) => (
+                <div key={p.id} style={{ position: 'relative' }}>
+                  <img src={p.url} />
+                  {onRemovePage && <button onClick={() => onRemovePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: '#B23A3A', color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>}
+                </div>
+              ))}
+              {onAddPage && <button className="add" onClick={onAddPage}>+ Add page</button>}
+            </div>
+          </div>
+          <div className="card">
+            <div className={'field' + (unsure('merchant') ? ' unsure' : '')}><label>Merchant</label><input value={r.merchant} onChange={e => set('merchant', e.target.value)} placeholder="e.g. JB Hi-Fi" />{unsure('merchant') && <div className="unsure-note">Check this</div>}</div>
+            <div className="row">
+              <div className={'field grow' + (unsure('date') ? ' unsure' : '')}><label>Date</label><input type="date" value={r.date || ''} onChange={e => set('date', e.target.value)} />{unsure('date') && <div className="unsure-note">Check this</div>}</div>
+              <div className={'field grow' + (unsure('total') ? ' unsure' : '')}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" />{unsure('total') && <div className="unsure-note">Check this</div>}</div>
+            </div>
+            <div className="row">
+              <div className="field grow"><label>GST</label><input type="number" inputMode="decimal" step="0.01" value={r.gst} onChange={e => set('gst', e.target.value)} placeholder="optional" /></div>
+              <div className="field grow"><label>Currency</label><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} /></div>
+            </div>
+            <div className={'field' + (unsure('category') ? ' unsure' : '')}>
+              <label>Category (one per receipt)</label>
+              <select value={r.category} onChange={e => set('category', e.target.value)}>
+                <option value="">Uncategorised</option>
+                {settings.categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {unsure('category') && <div className="unsure-note">Check this</div>}
+              <div className="row" style={{ marginTop: 6 }}><input className="grow" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New category" value={newCat} onChange={e => setNewCat(e.target.value)} /><button className="btn" onClick={addCat}>Add</button></div>
+            </div>
+            <div className="field">
+              <label>Tags (a receipt can have several)</label>
+              <div className="chips">{settings.tags.map(t => <button key={t} className={'chip btn' + (r.tags.includes(t) ? ' on' : '')} onClick={() => toggleTag(t)}>#{t}</button>)}</div>
+              <div className="row" style={{ marginTop: 8 }}><input className="grow" style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
+            </div>
+            <div className="field"><label>Items</label><input value={r.items || ''} onChange={e => set('items', e.target.value)} placeholder="What was bought" /></div>
+            <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
+          </div>
+          {onDelete && <div style={{ padding: '0 12px 20px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
+        </div>
+      );
+    }
+
+    // ---------- Image viewer ----------
+    function ImageViewer({ urls, start, onClose }) {
+      const [i, setI] = useState(start || 0);
+      return (
+        <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 70, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Close</button>
+            <span>{i + 1} / {urls.length}</span>
+            <a href={urls[i]} download={`receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 13 }}>Save</a>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', touchAction: 'pinch-zoom pan-x pan-y' }}>
+            <img src={urls[i]} style={{ maxWidth: '100%', height: 'auto' }} />
+          </div>
+          {urls.length > 1 && <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '10px 0 calc(16px + var(--safe-b))' }}>
+            <button className="btn" onClick={() => setI((i + urls.length - 1) % urls.length)}>Prev</button>
+            <button className="btn" onClick={() => setI((i + 1) % urls.length)}>Next</button>
+          </div>}
+        </div>
+      );
+    }
+
+    // ---------- Receipt detail (view + edit) ----------
+    function ReceiptDetail({ receipt, settings, setSettings, onClose, onChanged, onDeleted }) {
+      const [pages, setPages] = useState([]);
+      const [editing, setEditing] = useState(false);
+      const [viewer, setViewer] = useState(null);
+      const [adding, setAdding] = useState(false);
+      useEffect(() => {
+        let urls = [];
+        (async () => { const out = []; for (const id of receipt.pages || []) { const b = await dbGetImageBlob(id); if (b) { const url = URL.createObjectURL(b); urls.push(url); out.push({ id, blob: b, url }); } } setPages(out); })();
+        return () => urls.forEach(u => URL.revokeObjectURL(u));
+      }, [receipt.pages]);
+      const save = async (rec) => { const full = { ...receipt, ...rec, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setEditing(false); };
+      useEffect(() => { (async () => { const first = (receipt.pages || [])[0]; if (!first && receipt.thumb) { const full = { ...receipt, thumb: null }; await dbPut('receipts', full); onChanged(full); } else if (first && !receipt.thumb) { const b = await dbGetImageBlob(first); if (b) { const full = { ...receipt, thumb: await makeThumb(b) }; await dbPut('receipts', full); onChanged(full); } } })(); }, [receipt.pages]);
+      const del = async () => { for (const id of receipt.pages || []) await dbDel('images', id); await dbDel('receipts', receipt.id); onDeleted(receipt.id); };
+      const removePage = async (id) => { await dbDel('images', id); const rest = (receipt.pages || []).filter(p => p !== id); const full = { ...receipt, pages: rest, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); };
+      const addPageDone = async (blob) => { const id = uid(); await dbPut('images', { id, blob }); const full = { ...receipt, pages: [...(receipt.pages || []), id], updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setAdding(false); };
+      if (adding) return <AddPageFlow settings={settings} setSettings={setSettings} onDone={addPageDone} onCancel={() => setAdding(false)} />;
+      if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gst: receipt.gst ?? '', tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
+      const col = catColour(receipt.category, settings.categories);
+      return (
+        <div className="sheet">
+          {viewer !== null && <ImageViewer urls={pages.map(p => p.url)} start={viewer} onClose={() => setViewer(null)} />}
+          <div className="topbar"><button className="btn" onClick={onClose}>Back</button><h1 style={{ fontSize: 18 }}>Receipt</h1><button className="btn" onClick={() => setEditing(true)}>Edit</button></div>
+          {receipt.needsReview && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Some fields were unsure when this was read. Open Edit to confirm them.</div>}
+          <div className="card">
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{receipt.merchant || 'Unknown merchant'}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 8px' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
+            <div className="chips">
+              {receipt.category && <span className="chip" style={{ background: col + '22', color: col }}>{receipt.category}</span>}
+              {(receipt.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
+            </div>
+            <div className="kv" style={{ marginTop: 12 }}>
+              <span className="k">Date</span><span>{fmtDate(receipt.date) || 'Unknown'}</span>
+              {receipt.gst !== null && receipt.gst !== undefined && receipt.gst !== '' && <><span className="k">GST</span><span>{fmtMoney(receipt.gst, receipt.currency)}</span></>}
+              {receipt.items && <><span className="k">Items</span><span>{receipt.items}</span></>}
+              {receipt.comments && <><span className="k">Comments</span><span style={{ whiteSpace: 'pre-wrap' }}>{receipt.comments}</span></>}
+              <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
+            </div>
+          </div>
+          <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div>
+          <div style={{ padding: '0 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {pages.map((p, i) => <img key={p.id} src={p.url} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
+          </div>
+        </div>
+      );
+    }
+    function AddPageFlow({ settings, setSettings, onDone, onCancel }) {
+      const [canvas, setCanvas] = useState(null);
+      const onPick = async (f) => { try { setCanvas(await fileToCanvas(f, 2400)); } catch (_) { onCancel(); } };
+      if (canvas) return <CropEditor canvas={canvas} enhanceDefault={settings.enhanceDefault} onDone={(blob) => onDone(blob)} onRetake={() => setCanvas(null)} />;
+      return <InAppCamera pageNo="+" onCapture={setCanvas} onPick={onPick} onCancel={onCancel} settings={settings} setSettings={setSettings} />;
+    }
+
+    // ---------- List ----------
+    function ReceiptRow({ r, cats, onOpen }) {
+      const col = catColour(r.category, cats);
+      return (
+        <div className="card row" onClick={onOpen} style={{ cursor: 'pointer' }}>
+          {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--muted)' }}>no image</div>}
+          <div className="grow">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.merchant || 'Unknown merchant'}</div>
+              <div className="amt">{fmtMoney(r.total, r.currency)}</div>
+            </div>
+            <div className="small muted">{fmtDate(r.date)}{r.items ? ' · ' + r.items : ''}</div>
+            <div className="chips" style={{ marginTop: 5 }}>
+              {r.category && <span className="chip" style={{ background: col + '22', color: col }}>{r.category}</span>}
+              {(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
+              {r.needsReview && <span className="chip warn">Check</span>}
+              {(r.pages || []).length > 1 && <span className="chip" style={{ background: '#eee', color: '#555' }}>{r.pages.length} pages</span>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    function ReceiptList({ receipts, settings, onOpen, filter, setFilter }) {
+      const [q, setQ] = useState('');
+      const shown = useMemo(() => {
+        let list = receipts.slice();
+        if (filter.category) list = list.filter(r => r.category === filter.category);
+        if (filter.tag) list = list.filter(r => (r.tags || []).includes(filter.tag));
+        if (filter.review) list = list.filter(r => r.needsReview);
+        if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
+        list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+        return list;
+      }, [receipts, filter, q]);
+      const total = shown.reduce((s, r) => s + (+r.total || 0), 0);
+      const groups = useMemo(() => { const g = []; let cur = null; for (const r of shown) { const k = (r.date || '').slice(0, 7); if (!cur || cur.key !== k) { cur = { key: k, label: r.date ? monthLabel(r.date.slice(0, 7) + '-01') : 'Unknown date', items: [], sum: 0 }; g.push(cur); } cur.items.push(r); cur.sum += (+r.total || 0); } return g; }, [shown]);
+      const reviewCount = receipts.filter(r => r.needsReview).length;
+      return (
+        <>
+          <div style={{ padding: '0 12px 6px' }}><input className="search" placeholder="Search merchant, items, comments" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <div className="filters">
+            <span className="flabel">Show</span>
+            <button className={'chip btn' + (!filter.category && !filter.tag && !filter.review ? ' on' : '')} onClick={() => setFilter({})}>All</button>
+            {reviewCount > 0 && <button className={'chip btn' + (filter.review ? ' on' : '')} onClick={() => setFilter({ review: true })}>Needs check ({reviewCount})</button>}
+          </div>
+          <div className="filters">
+            <span className="flabel">Category</span>
+            {settings.categories.map(c => <button key={c} className={'chip btn' + (filter.category === c ? ' on' : '')} onClick={() => setFilter(filter.category === c ? {} : { category: c })}>{c}</button>)}
+          </div>
+          <div className="filters">
+            <span className="flabel">Tag</span>
+            {settings.tags.map(t => <button key={t} className={'chip btn' + (filter.tag === t ? ' on' : '')} onClick={() => setFilter(filter.tag === t ? {} : { tag: t })}>#{t}</button>)}
+          </div>
+          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
+          {!shown.length && <div className="empty">{receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to photograph one.'}</div>}
+          {groups.map(g => (
+            <div key={g.key}>
+              <div className="section-h"><span>{g.label}</span><span className="amt">{fmtMoney(g.sum, settings.currency)}</span></div>
+              {g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} />)}
+            </div>
+          ))}
+        </>
+      );
+    }
+
+    // ---------- Sections (by tag) ----------
+    function Sections({ receipts, settings, setSettings, onOpen }) {
+      const [tag, setTag] = useState(null);
+      const [newTag, setNewTag] = useState('');
+      const [armed, setArmed] = useState(null);
+      useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 3000); return () => clearTimeout(t); }, [armed]);
+      const counts = {}; receipts.forEach(r => (r.tags || []).forEach(t => { counts[t] = counts[t] || { n: 0, sum: 0 }; counts[t].n++; counts[t].sum += (+r.total || 0); }));
+      const addTag = () => { const t = newTag.trim(); if (!t || settings.tags.includes(t)) return; setSettings(s => ({ ...s, tags: [...s.tags, t] })); setNewTag(''); };
+      const removeTag = async (t) => {
+        setSettings(s => ({ ...s, tags: s.tags.filter(x => x !== t) }));
+        for (const r of receipts) if ((r.tags || []).includes(t)) await dbPut('receipts', { ...r, tags: r.tags.filter(x => x !== t), updatedAt: new Date().toISOString() });
+        setArmed(null);
+      };
+      if (tag) {
+        const list = receipts.filter(r => (r.tags || []).includes(tag)).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const sum = list.reduce((s, r) => s + (+r.total || 0), 0);
+        return (
+          <>
+            <div style={{ padding: '0 12px 8px' }}><button className="btn" onClick={() => setTag(null)}>Back to tags</button></div>
+            <div className="total-line"><span>#{tag}: {list.length} receipt{list.length === 1 ? '' : 's'}</span><span className="amt">{fmtMoney(sum, settings.currency)}</span></div>
+            {list.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} />)}
+          </>
+        );
+      }
+      return (
+        <>
+          <div className="banner info">A receipt has one category (its type: Electronics, Bills) and any number of tags (why you keep it: #Warranty, #Reimbursable). This screen lists receipts by tag.</div>
+          {settings.tags.map(t => (
+            <div key={t} className="card row">
+              <div className="grow" onClick={() => setTag(t)} style={{ cursor: 'pointer' }}>
+                <div style={{ fontWeight: 600 }}>#{t}</div>
+                <div className="small muted">{(counts[t] || { n: 0 }).n} receipts · {fmtMoney((counts[t] || { sum: 0 }).sum, settings.currency)}</div>
+              </div>
+              <button className={'chip btn' + (armed === t ? ' on' : '')} style={armed === t ? { background: '#B23A3A', borderColor: '#B23A3A' } : {}} onClick={() => armed === t ? removeTag(t) : setArmed(t)}>{armed === t ? 'Confirm' : 'Remove'}</button>
+            </div>
+          ))}
+          <div className="card row"><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag, e.g. Tax 2026" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
+        </>
+      );
+    }
+
+    // ---------- Settings ----------
+    function Settings({ settings, setSettings, receipts, reload }) {
+      const [msg, setMsg] = useState(null);
+      const [busy, setBusy] = useState(false);
+      const [newCat, setNewCat] = useState('');
+      const [armed, setArmed] = useState(null);
+      const [keyDraft, setKeyDraft] = useState(settings.apiKey);
+      const [cidDraft, setCidDraft] = useState(settings.driveClientId);
+      useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 3000); return () => clearTimeout(t); }, [armed]);
+      const note = (kind, text) => setMsg({ kind, text });
+      const doExport = async () => {
+        setBusy(true);
+        try { const zip = await buildExportZip(receipts, settings); const name = `receipts-${todayISO()}.zip`; const how = await shareOrDownload(zip, name); note('ok', how === 'shared' ? 'Exported and shared.' : how === 'downloaded' ? `Exported ${name} to your downloads.` : 'Export cancelled.'); }
+        catch (e) { note('err', 'Export failed: ' + e.message); } finally { setBusy(false); }
+      };
+      const doExportCSV = () => { downloadBlob(new Blob([buildCSV(receipts)], { type: 'text/csv' }), `receipts-${todayISO()}.csv`); note('ok', 'CSV saved to downloads.'); };
+      const doImport = async (file) => {
+        if (!file) return; setBusy(true);
+        try {
+          const res = await importData(file, receipts);
+          setSettings(s => ({ ...s, categories: Array.from(new Set([...s.categories, ...res.categories])), tags: Array.from(new Set([...s.tags, ...res.tags])) }));
+          await reload(); note('ok', `Imported: ${res.added} new, ${res.updated} updated.`);
+        } catch (e) { note('err', 'Import failed: ' + e.message); } finally { setBusy(false); }
+      };
+      const removeCat = async (c) => {
+        setSettings(s => ({ ...s, categories: s.categories.filter(x => x !== c) }));
+        for (const r of receipts) if (r.category === c) await dbPut('receipts', { ...r, category: '', updatedAt: new Date().toISOString() });
+        await reload(); setArmed(null);
+      };
+      const addCat = () => { const c = newCat.trim(); if (!c || settings.categories.includes(c)) return; setSettings(s => ({ ...s, categories: [...s.categories, c] })); setNewCat(''); };
+      // Drive
+      const driveSync = async () => {
+        if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
+        setBusy(true);
+        try {
+          const token = await driveToken(settings.driveClientId, true);
+          const folder = settings.driveFolderId || await driveFolder(token);
+          const files = await driveList(token, folder);
+          const byName = {}; files.forEach(f => byName[f.name] = f);
+          let up = 0;
+          for (const r of receipts) for (const pid of (r.pages || [])) {
+            if (byName[`${pid}.jpg`]) continue;
+            const blob = await dbGetImageBlob(pid); if (!blob) continue;
+            await driveUpload(token, folder, `${pid}.jpg`, blob); up++;
+          }
+          const manifest = new Blob([JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) })], { type: 'application/json' });
+          await driveUpload(token, folder, 'receipts.json', manifest, byName['receipts.json'] && byName['receipts.json'].id);
+          setSettings(s => ({ ...s, driveFolderId: folder, lastSync: new Date().toISOString() }));
+          note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded.`);
+        } catch (e) { note('err', 'Drive sync failed: ' + e.message); } finally { setBusy(false); }
+      };
+      const driveRestore = async () => {
+        if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
+        setBusy(true);
+        try {
+          const token = await driveToken(settings.driveClientId, true);
+          const folder = settings.driveFolderId || await driveFolder(token);
+          const files = await driveList(token, folder);
+          const mf = files.find(f => f.name === 'receipts.json'); if (!mf) throw new Error('No receipts.json in the Drive folder yet.');
+          const manifest = JSON.parse(await (await driveDownload(token, mf.id)).text());
+          const byName = {}; files.forEach(f => byName[f.name] = f);
+          let added = 0, imgs = 0;
+          for (const r of manifest.receipts || []) {
+            for (const pid of r.pages || []) { if (await dbGet('images', pid)) continue; const f = byName[`${pid}.jpg`]; if (!f) continue; await dbPut('images', { id: pid, blob: await driveDownload(token, f.id) }); imgs++; }
+            const cur = receipts.find(x => x.id === r.id);
+            if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
+            let thumb = null; if (r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }
+            await dbPut('receipts', { ...r, thumb }); added++;
+          }
+          setSettings(s => ({ ...s, driveFolderId: folder, categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])), tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])) }));
+          await reload(); note('ok', `Restored ${added} receipt${added === 1 ? '' : 's'} and ${imgs} image${imgs === 1 ? '' : 's'} from Drive.`);
+        } catch (e) { note('err', 'Restore failed: ' + e.message); } finally { setBusy(false); }
+      };
+      const [diag, setDiag] = useState(null);
+      const runDiag = async () => {
+        let est = null; try { est = await navigator.storage.estimate(); } catch (_) {}
+        let persisted = null; try { persisted = await navigator.storage.persisted(); if (!persisted) persisted = await navigator.storage.persist(); } catch (_) {}
+        const imgs = await dbGetAll('images');
+        setDiag({ receipts: receipts.length, images: imgs.length, bytes: imgs.reduce((s, i) => s + (i.blob ? i.blob.size : 0), 0), quota: est, persisted, standalone: window.matchMedia('(display-mode: standalone)').matches, ua: navigator.userAgent });
+      };
+      const mb = (b) => (b / 1048576).toFixed(1) + ' MB';
+      return (
+        <>
+          {msg && <div className={'banner ' + (msg.kind === 'ok' ? 'ok' : 'err')} onClick={() => setMsg(null)}>{msg.text}</div>}
+          <div className="section-h"><span>Claude API key</span></div>
+          <div className="card">
+            <div className="small muted" style={{ marginBottom: 8 }}>Used to read receipts. Get a key at console.anthropic.com. Stored only on this device.</div>
+            <div className="row"><input className="grow" type="password" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="sk-ant-..." value={keyDraft} onChange={e => setKeyDraft(e.target.value)} /><button className="btn" onClick={() => { setSettings(s => ({ ...s, apiKey: keyDraft.trim() })); note('ok', 'API key saved.'); }}>Save</button></div>
+            <div className="small muted" style={{ marginTop: 6 }}>{settings.apiKey ? 'Key is set.' : 'No key set. Receipts can still be entered by hand.'}</div>
+          </div>
+
+          <div className="section-h"><span>Categories (one per receipt)</span></div>
+          <div className="card">
+            {settings.categories.map(c => (
+              <div key={c} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                <span className="chip" style={{ background: catColour(c, settings.categories) + '22', color: catColour(c, settings.categories) }}>{c}</span>
+                <span className="grow small muted">{receipts.filter(r => r.category === c).length} receipts</span>
+                <button className="chip btn" style={armed === c ? { background: '#B23A3A', color: '#fff', borderColor: '#B23A3A' } : {}} onClick={() => armed === c ? removeCat(c) : setArmed(c)}>{armed === c ? 'Confirm' : 'Remove'}</button>
+              </div>
+            ))}
+            <div className="row" style={{ marginTop: 10 }}><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New category" value={newCat} onChange={e => setNewCat(e.target.value)} /><button className="btn" onClick={addCat}>Add</button></div>
+          </div>
+
+          <div className="section-h"><span>Capture</span></div>
+          <div className="card">
+            <label className="row" style={{ justifyContent: 'space-between' }}><span>Enhance scans by default (black and white, cleaned)</span><input type="checkbox" checked={settings.enhanceDefault} onChange={e => setSettings(s => ({ ...s, enhanceDefault: e.target.checked }))} style={{ width: 22, height: 22 }} /></label>
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 10 }}><span>Currency</span><input value={settings.currency} maxLength={3} onChange={e => setSettings(s => ({ ...s, currency: e.target.value.toUpperCase() }))} style={{ width: 70, padding: '8px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
+            {settings.cameraDevice && <button className="btn" style={{ marginTop: 10 }} onClick={() => setSettings(s => ({ ...s, cameraDevice: '' }))}>Forget remembered lens</button>}
+          </div>
+
+          <div className="section-h"><span>Backup: export and import</span></div>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="small muted">The zip holds every receipt, its images, and a CSV. Share it to Google Drive from the share sheet, or keep it anywhere. Import merges by receipt and keeps the newer version.</div>
+            <button className="btn primary" disabled={busy || !receipts.length} onClick={doExport}>Export everything (zip)</button>
+            <button className="btn" disabled={!receipts.length} onClick={doExportCSV}>Export CSV only</button>
+            <label className="btn" style={{ textAlign: 'center' }}>Import zip or json<input type="file" accept=".zip,.json,application/zip,application/json" hidden onChange={e => doImport(e.target.files[0])} /></label>
+          </div>
+
+          <div className="section-h"><span>Google Drive sync</span></div>
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="small muted">Needs a Google Cloud OAuth client ID for this site's address. See README for the steps. Sync uploads a folder called "{DRIVE_FOLDER}" with every image and a receipts.json.</div>
+            <div className="row"><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="xxxx.apps.googleusercontent.com" value={cidDraft} onChange={e => setCidDraft(e.target.value)} /><button className="btn" onClick={() => { setSettings(s => ({ ...s, driveClientId: cidDraft.trim(), driveFolderId: '' })); note('ok', 'Client ID saved.'); }}>Save</button></div>
+            <div className="row"><button className="btn primary grow" disabled={busy || !settings.driveClientId} onClick={driveSync}>Sync to Drive</button><button className="btn grow" disabled={busy || !settings.driveClientId} onClick={driveRestore}>Restore from Drive</button></div>
+            <div className="small muted">{settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'}</div>
+          </div>
+
+          <div className="section-h"><span>Diagnostics</span></div>
+          <div className="card">
+            <div className="small" style={{ fontFamily: 'monospace' }}>build {BUILD_VERSION}</div>
+            <button className="btn" style={{ marginTop: 8 }} onClick={runDiag}>Check storage</button>
+            {diag && <div className="small muted" style={{ marginTop: 8, whiteSpace: 'pre-wrap' }}>
+              {`${diag.receipts} receipts, ${diag.images} images, ${mb(diag.bytes)}\n`}
+              {diag.quota ? `Using ${mb(diag.quota.usage)} of ${mb(diag.quota.quota)} available\n` : ''}
+              {`Persistent storage: ${diag.persisted === null ? 'unknown' : diag.persisted ? 'granted' : 'not granted (export regularly)'}\n`}
+              {`Installed as app: ${diag.standalone ? 'yes' : 'no'}`}
+            </div>}
+          </div>
+        </>
+      );
+    }
+
+    // ---------- App ----------
+    function App() {
+      const [settings, setSettingsState] = useState(loadSettings);
+      const setSettings = useCallback((fn) => setSettingsState(s => { const n = typeof fn === 'function' ? fn(s) : fn; saveSettings(n); return n; }), []);
+      const [receipts, setReceipts] = useState([]);
+      const [tab, setTab] = useState('receipts');
+      const [capturing, setCapturing] = useState(false);
+      const [open, setOpen] = useState(null);
+      const [filter, setFilter] = useState({});
+      const [loaded, setLoaded] = useState(false);
+      const reload = useCallback(async () => { try { const all = await dbGetAll('receipts'); setReceipts(all); } catch (e) { console.error(e); } setLoaded(true); }, []);
+      useEffect(() => { reload(); }, []);
+      useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {} }, []);
+      const onSaved = (r) => { setReceipts(list => [...list.filter(x => x.id !== r.id), r]); setCapturing(false); setOpen(r); };
+      const onChanged = (r) => { setReceipts(list => list.map(x => x.id === r.id ? r : x)); setOpen(r); };
+      const onDeleted = (id) => { setReceipts(list => list.filter(x => x.id !== id)); setOpen(null); };
+      if (capturing) return <CaptureFlow settings={settings} setSettings={setSettings} onSaved={onSaved} onCancel={() => setCapturing(false)} />;
+      if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
+      return (
+        <div className="app">
+          <div className="topbar"><h1>{tab === 'receipts' ? 'Receipts' : tab === 'sections' ? 'Tags' : 'Settings'}</h1>{tab === 'receipts' && <span className="small muted">{receipts.length} total</span>}</div>
+          {!loaded ? <div className="empty">Loading...</div> :
+            tab === 'receipts' ? <ReceiptList receipts={receipts} settings={settings} onOpen={setOpen} filter={filter} setFilter={setFilter} /> :
+            tab === 'sections' ? <Sections receipts={receipts} settings={settings} setSettings={setSettings} onOpen={setOpen} /> :
+            <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} />}
+          <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>
+          <div className="tabbar">
+            <button className={tab === 'receipts' ? 'on' : ''} onClick={() => setTab('receipts')}><span className="ico">🧾</span>Receipts</button>
+            <button className={tab === 'sections' ? 'on' : ''} onClick={() => setTab('sections')}><span className="ico">🏷️</span>Tags</button>
+            <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}><span className="ico">⚙️</span>Settings</button>
+          </div>
+        </div>
+      );
+    }
+    window.__receipts = { makeZip, readZip, buildExportZip, importData, dbGetAll, detectReceipt }; // for testing from the console
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
