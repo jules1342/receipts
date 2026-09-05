@@ -1,6 +1,8 @@
 @echo off
-rem Build, then deploy app/ to the claimed Netlify site. Run "netlify login" once first.
+rem Build, commit and push. GitHub Pages publishes app/ about a minute later.
 cd /d "%~dp0"
 node build.js || exit /b 1
-cd ..\app
-netlify deploy --prod --dir .
+cd ..
+git add -A
+git commit -m "Build %date%"
+git push
