@@ -43,3 +43,6 @@ Note: the Drive round trip has not been exercised from the build machine. It nee
 
 ## Export and import
 Settings, Export everything (zip). On the phone the share sheet opens, so you can send the zip straight to Google Drive, email, or Files. The zip holds `receipts.json`, `receipts.csv`, and `images/`. Import accepts that zip, a bare `receipts.json`, or the `App Data/Receipts` folder downloaded from Google Drive as a zip, and merges by receipt id, keeping the newer copy. Images are named `date item merchant total pN [pageid].jpg`; the id in brackets is what import and restore match on, so the rest of the name can be anything.
+
+## Migrating from Smart Receipts
+`_build/smart-receipts-convert.py` turns a Smart Receipts "report with images" zip into a zip this app imports. Run it on the PC with your API key in the environment so every image is read by Claude, which pins the ambiguous matches (Fuel, Gas, Water) by invoice date and total, fills merchant and a concise item name, and prefers the invoice when the hand-typed row disagrees. Reads are cached in `reads.json`, so a re-run is free. The output folder gets `smart-receipts-import.zip` and a `report.md` listing anything matched by order only or left unmatched. Import the zip on the phone through Settings.
