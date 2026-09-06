@@ -42,4 +42,4 @@ There is nothing to paste. The OAuth client ID is compiled into the app, and it 
 Note: the Drive round trip has not been exercised from the build machine. It needs Julian's Google account and the live URL, so the first run on the phone is the real test.
 
 ## Export and import
-Settings, Export everything (zip). On the phone the share sheet opens, so you can send the zip straight to Google Drive, email, or Files. The zip holds `receipts.json`, `receipts.csv`, and `images/`. Import accepts that zip or a bare `receipts.json` and merges by receipt id, keeping the newer copy.
+Settings, Export everything (zip). On the phone the share sheet opens, so you can send the zip straight to Google Drive, email, or Files. The zip holds `receipts.json`, `receipts.csv`, and `images/`. Import accepts that zip, a bare `receipts.json`, or the `App Data/Receipts` folder downloaded from Google Drive as a zip, and merges by receipt id, keeping the newer copy. Images are named `date item merchant total pN [pageid].jpg`; the id in brackets is what import and restore match on, so the rest of the name can be anything.

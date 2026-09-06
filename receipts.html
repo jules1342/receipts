@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06b-drive-folder';
+    const BUILD_VERSION = '2026-09-06c-image-names';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -675,15 +675,23 @@
       receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
       return rows.map(r => r.map(csvEscape).join(',')).join('\n');
     };
+    // Image file names are descriptive, with the page id in brackets so a restore or import can map them back:
+    //   2026-09-02 Sony headphones JB Hi-Fi 468.95 p1 [mtnw15drjjovjd].jpg
+    const safeName = (t) => String(t || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const pageFileName = (r, idx, pid) => {
+      const parts = [r.date || 'undated', safeName(r.items), safeName(r.merchant), r.total !== null && r.total !== undefined && r.total !== '' ? (+r.total).toFixed(2) : ''].filter(Boolean);
+      return `${parts.join(' ')} p${idx + 1} [${pid}].jpg`;
+    };
+    const idFromFileName = (name) => { const b = name.split('/').pop(); let m = b.match(/\[([a-z0-9]+)\]\.jpe?g$/i); if (m) return m[1]; m = b.match(/^([a-z0-9]{8,})\.jpe?g$/i); return m ? m[1] : null; };
     const buildExportZip = async (receipts, settings) => {
       const enc = new TextEncoder();
       const entries = [
         { name: 'receipts.json', data: enc.encode(JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) }, null, 2)) },
         { name: 'receipts.csv', data: enc.encode(buildCSV(receipts)) }
       ];
-      for (const r of receipts) for (const pid of (r.pages || [])) {
+      for (const r of receipts) for (const [i, pid] of (r.pages || []).entries()) {
         const blob = await dbGetImageBlob(pid);
-        if (blob) entries.push({ name: `images/${pid}.jpg`, data: new Uint8Array(await blob.arrayBuffer()) });
+        if (blob) entries.push({ name: `images/${pageFileName(r, i, pid)}`, data: new Uint8Array(await blob.arrayBuffer()) });
       }
       return makeZip(entries);
     };
@@ -692,16 +700,16 @@
       let manifest = null, images = [];
       if (/\.zip$/i.test(file.name) || file.type === 'application/zip') {
         const entries = await readZip(await file.arrayBuffer());
-        const mj = entries.find(e => e.name === 'receipts.json'); if (!mj) throw new Error('receipts.json missing from zip');
+        const mj = entries.find(e => e.name.split('/').pop() === 'receipts.json'); if (!mj) throw new Error('receipts.json missing from zip');
         manifest = JSON.parse(new TextDecoder().decode(mj.data));
-        images = entries.filter(e => /^images\/.+\.jpg$/i.test(e.name));
+        images = entries.filter(e => /\.jpe?g$/i.test(e.name) && idFromFileName(e.name));
       } else {
         manifest = JSON.parse(await file.text());
       }
       const list = manifest.receipts || []; const have = new Set(existing.map(r => r.id));
       let added = 0, updated = 0;
       for (const im of images) {
-        const id = im.name.replace(/^images\//, '').replace(/\.jpg$/i, '');
+        const id = idFromFileName(im.name);
         await dbPut('images', { id, blob: new Blob([im.data], { type: 'image/jpeg' }) });
       }
       for (const r of list) {
@@ -1217,14 +1225,14 @@
     }
 
     // ---------- Image viewer ----------
-    function ImageViewer({ urls, start, onClose }) {
+    function ImageViewer({ urls, names, start, onClose }) {
       const [i, setI] = useState(start || 0);
       return (
         <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 70, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Close</button>
             <span>{i + 1} / {urls.length}</span>
-            <a href={urls[i]} download={`receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 13 }}>Save</a>
+            <a href={urls[i]} download={(names && names[i]) || `receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 13 }}>Save</a>
           </div>
           <ZoomPane key={i} style={{ flex: 1 }} maxScale={8}>
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1268,7 +1276,7 @@
       const col = catColour(receipt.category, settings.categories);
       return (
         <div className="sheet">
-          {viewer !== null && <ImageViewer urls={pages.map(p => p.url)} start={viewer} onClose={() => setViewer(null)} />}
+          {viewer !== null && <ImageViewer urls={pages.map(p => p.url)} names={pages.map((p, i) => pageFileName(receipt, i, p.id))} start={viewer} onClose={() => setViewer(null)} />}
           <div className="topbar"><button className="btn" onClick={onClose}>Back</button><h1 style={{ fontSize: 18 }}>Receipt</h1><button className="btn" onClick={() => setEditing(true)}>Edit</button></div>
           {receipt.needsReview && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Some fields were unsure when this was read. Open Edit to confirm them.</div>}
           <div className="card">
@@ -1465,17 +1473,19 @@
           const token = await driveToken(DRIVE_CLIENT_ID, true);
           const folder = settings.driveFolderId || await driveFolder(token);
           const files = await driveList(token, folder);
-          const byName = {}; files.forEach(f => byName[f.name] = f);
-          let up = 0;
-          for (const r of receipts) for (const pid of (r.pages || [])) {
-            if (byName[`${pid}.jpg`]) continue;
+          const byName = {}, byId = {}; files.forEach(f => { byName[f.name] = f; const id = idFromFileName(f.name); if (id) byId[id] = f; });
+          let up = 0, renamed = 0;
+          for (const r of receipts) for (const [i, pid] of (r.pages || []).entries()) {
+            const want = pageFileName(r, i, pid);
+            const have = byId[pid];
+            if (have) { if (have.name !== want) { await dfetch(token, `https://www.googleapis.com/drive/v3/files/${have.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: want }) }); renamed++; } continue; }
             const blob = await dbGetImageBlob(pid); if (!blob) continue;
-            await driveUpload(token, folder, `${pid}.jpg`, blob); up++;
+            await driveUpload(token, folder, want, blob); up++;
           }
           const manifest = new Blob([JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) })], { type: 'application/json' });
           await driveUpload(token, folder, 'receipts.json', manifest, byName['receipts.json'] && byName['receipts.json'].id);
           setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, lastSync: new Date().toISOString() }));
-          note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded.`);
+          note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded${renamed ? `, ${renamed} renamed` : ''}.`);
         } catch (e) { note('err', 'Drive sync failed: ' + e.message); } finally { setBusy(false); }
       };
       const driveRestore = async () => {
@@ -1486,10 +1496,10 @@
           const files = await driveList(token, folder);
           const mf = files.find(f => f.name === 'receipts.json'); if (!mf) throw new Error('No receipts.json in the Drive folder yet.');
           const manifest = JSON.parse(await (await driveDownload(token, mf.id)).text());
-          const byName = {}; files.forEach(f => byName[f.name] = f);
+          const byId = {}; files.forEach(f => { const id = idFromFileName(f.name); if (id) byId[id] = f; });
           let added = 0, imgs = 0;
           for (const r of manifest.receipts || []) {
-            for (const pid of r.pages || []) { if (await dbGet('images', pid)) continue; const f = byName[`${pid}.jpg`]; if (!f) continue; await dbPut('images', { id: pid, blob: await driveDownload(token, f.id) }); imgs++; }
+            for (const pid of r.pages || []) { if (await dbGet('images', pid)) continue; const f = byId[pid]; if (!f) continue; await dbPut('images', { id: pid, blob: await driveDownload(token, f.id) }); imgs++; }
             const cur = receipts.find(x => x.id === r.id);
             if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
             let thumb = null; if (r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }
@@ -1550,7 +1560,7 @@
 
           <div className="section-h"><span>Backup: export and import</span></div>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="small muted">The zip holds every receipt, its images, and a CSV. Share it to Google Drive from the share sheet, or keep it anywhere. Import merges by receipt and keeps the newer version.</div>
+            <div className="small muted">The zip holds every receipt, its images, and a CSV. Share it to Google Drive from the share sheet, or keep it anywhere. Import accepts that zip, a bare receipts.json, or the Drive folder downloaded as a zip from Google. It merges by receipt and keeps the newer version.</div>
             <button className="btn primary" disabled={busy || !receipts.length} onClick={doExport}>Export everything (zip)</button>
             <button className="btn" disabled={!receipts.length} onClick={doExportCSV}>Export CSV only</button>
             <label className="btn" style={{ textAlign: 'center' }}>Import zip or json<input type="file" accept=".zip,.json,application/zip,application/json" hidden onChange={e => doImport(e.target.files[0])} /></label>
