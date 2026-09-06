@@ -19,7 +19,7 @@
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; overscroll-behavior-y: none; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
@@ -406,7 +406,132 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06k-dup-viewer';
+const BUILD_VERSION = '2026-09-06p-dup-edit';
+const ERR_KEY = 'receipts_errors';
+const logError = (where, e) => {
+  try {
+    const list = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
+    list.unshift({
+      t: new Date().toISOString(),
+      where,
+      msg: String(e && e.message || e),
+      stack: String(e && e.stack || '').slice(0, 600),
+      build: BUILD_VERSION,
+      mem: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : ''
+    });
+    localStorage.setItem(ERR_KEY, JSON.stringify(list.slice(0, 20)));
+  } catch (_) {}
+};
+window.addEventListener('error', ev => logError('window', ev.error || ev.message));
+window.addEventListener('unhandledrejection', ev => logError('promise', ev.reason));
+const nav = {
+  stack: [],
+  pendingBacks: 0,
+  queue: [],
+  id: 0
+};
+const navFlush = () => {
+  while (nav.queue.length) {
+    const e = nav.queue.shift();
+    nav.stack.push(e);
+    try {
+      history.pushState({
+        sheet: e.id
+      }, '');
+    } catch (_) {}
+  }
+};
+window.addEventListener('popstate', () => {
+  if (nav.pendingBacks > 0) {
+    nav.pendingBacks--;
+    if (!nav.pendingBacks) navFlush();
+    return;
+  }
+  const top = nav.stack.pop();
+  if (top) top.fn();
+});
+function useBack(open, onBack) {
+  const ref = useRef(onBack);
+  ref.current = onBack;
+  useEffect(() => {
+    if (!open) return;
+    const entry = {
+      id: ++nav.id,
+      fn: () => ref.current()
+    };
+    if (nav.pendingBacks > 0) nav.queue.push(entry);else {
+      nav.stack.push(entry);
+      try {
+        history.pushState({
+          sheet: entry.id
+        }, '');
+      } catch (_) {}
+    }
+    return () => {
+      const qi = nav.queue.indexOf(entry);
+      if (qi >= 0) {
+        nav.queue.splice(qi, 1);
+        return;
+      }
+      const i = nav.stack.indexOf(entry);
+      if (i < 0) return;
+      nav.stack.splice(i, 1);
+      if (history.state && history.state.sheet === entry.id) {
+        nav.pendingBacks++;
+        try {
+          history.back();
+        } catch (_) {
+          nav.pendingBacks--;
+        }
+      }
+    };
+  }, [open]);
+}
+class ErrorBoundary extends React.Component {
+  constructor(p) {
+    super(p);
+    this.state = {
+      err: null
+    };
+  }
+  static getDerivedStateFromError(err) {
+    return {
+      err
+    };
+  }
+  componentDidCatch(err, info) {
+    logError('render', err);
+  }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return React.createElement("div", {
+      style: {
+        padding: '40px 20px',
+        textAlign: 'center'
+      }
+    }, React.createElement("div", {
+      style: {
+        fontSize: 18,
+        fontWeight: 700,
+        marginBottom: 8
+      }
+    }, "Something went wrong"), React.createElement("div", {
+      className: "small muted",
+      style: {
+        marginBottom: 16,
+        wordBreak: 'break-word'
+      }
+    }, String(this.state.err && this.state.err.message || this.state.err)), React.createElement("button", {
+      className: "btn primary",
+      onClick: () => window.location.reload()
+    }, "Reload"), React.createElement("div", {
+      className: "small muted",
+      style: {
+        marginTop: 12
+      }
+    }, "Your receipts are safe. The error is recorded under Settings, Diagnostics."));
+  }
+}
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -576,7 +701,9 @@ const fileToCanvas = async (file, maxDim = 2000) => {
   const c = document.createElement('canvas');
   c.width = Math.round(w * scale);
   c.height = Math.round(h * scale);
-  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  c.getContext('2d', {
+    willReadFrequently: true
+  }).drawImage(src, 0, 0, c.width, c.height);
   if (bmp && bmp.close) bmp.close();
   return c;
 };
@@ -585,8 +712,13 @@ const scaleCanvas = (src, maxDim, q = 0.8) => {
   const c = document.createElement('canvas');
   c.width = Math.round(src.width * scale);
   c.height = Math.round(src.height * scale);
-  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', q);
+  c.getContext('2d', {
+    willReadFrequently: true
+  }).drawImage(src, 0, 0, c.width, c.height);
+  const url = c.toDataURL('image/jpeg', q);
+  c.width = 0;
+  c.height = 0;
+  return url;
 };
 const blobToCanvas = async (blob, maxDim) => fileToCanvas(blob, maxDim);
 const detectReceipt = canvas => {
@@ -598,7 +730,9 @@ const detectReceipt = canvas => {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', {
+    willReadFrequently: true
+  });
   ctx.drawImage(canvas, 0, 0, w, h);
   const d = ctx.getImageData(0, 0, w, h).data;
   const nCh = 5;
@@ -1135,11 +1269,15 @@ const warpQuad = (canvas, quad, maxDim = 1800) => {
   }]);
   const sw = canvas.width,
     sh = canvas.height;
-  const sd = canvas.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const sd = canvas.getContext('2d', {
+    willReadFrequently: true
+  }).getImageData(0, 0, sw, sh).data;
   const out = document.createElement('canvas');
   out.width = outW;
   out.height = outH;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', {
+    willReadFrequently: true
+  });
   const od = octx.createImageData(outW, outH);
   const o = od.data;
   for (let Y = 0; Y < outH; Y++) {
@@ -1174,35 +1312,50 @@ const warpQuad = (canvas, quad, maxDim = 1800) => {
 const enhanceCanvas = canvas => {
   const w = canvas.width,
     h = canvas.height;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', {
+    willReadFrequently: true
+  });
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   const g = new Float32Array(w * h);
   for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  const I = new Float64Array((w + 1) * (h + 1));
-  for (let y = 1; y <= h; y++) {
-    let rs = 0;
-    for (let x = 1; x <= w; x++) {
-      rs += g[(y - 1) * w + x - 1];
-      I[y * (w + 1) + x] = I[(y - 1) * (w + 1) + x] + rs;
+  const R = Math.max(8, Math.round(Math.max(w, h) / 24));
+  const tmp = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let sum = 0;
+    for (let x = 0; x <= Math.min(w - 1, R); x++) sum += g[row + x];
+    for (let x = 0; x < w; x++) {
+      const x0 = x - R - 1,
+        x1 = x + R;
+      if (x0 >= 0) sum -= g[row + x0];
+      if (x1 < w && x > 0) sum += g[row + x1];
+      tmp[row + x] = sum / (Math.min(w - 1, x + R) - Math.max(0, x - R) + 1);
     }
   }
-  const R = Math.max(8, Math.round(Math.max(w, h) / 24));
+  const mean = new Float32Array(w * h);
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = 0; y <= Math.min(h - 1, R); y++) sum += tmp[y * w + x];
+    for (let y = 0; y < h; y++) {
+      const y0 = y - R - 1,
+        y1 = y + R;
+      if (y0 >= 0) sum -= tmp[y0 * w + x];
+      if (y1 < h && y > 0) sum += tmp[y1 * w + x];
+      mean[y * w + x] = sum / (Math.min(h - 1, y + R) - Math.max(0, y - R) + 1);
+    }
+  }
   const out = document.createElement('canvas');
   out.width = w;
   out.height = h;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', {
+    willReadFrequently: true
+  });
   const od = octx.createImageData(w, h);
   const o = od.data;
   for (let y = 0; y < h; y++) {
-    const y0 = Math.max(0, y - R),
-      y1 = Math.min(h, y + R + 1);
     for (let x = 0; x < w; x++) {
-      const x0 = Math.max(0, x - R),
-        x1 = Math.min(w, x + R + 1);
-      const area = (y1 - y0) * (x1 - x0);
-      const mean = (I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0]) / area;
-      let v = g[y * w + x] / (mean + 4) * 232;
+      let v = g[y * w + x] / (mean[y * w + x] + 4) * 232;
       v = v > 255 ? 255 : v;
       v = (v - 128) * 1.15 + 128;
       v = v < 0 ? 0 : v > 255 ? 255 : v;
@@ -1258,6 +1411,10 @@ const EXTRACT_SCHEMA = {
       type: ['string', 'null'],
       description: 'Any warranty period or product serial printed on the receipt, else null'
     },
+    receipt_number: {
+      type: ['string', 'null'],
+      description: 'The receipt, invoice, tax invoice or transaction number printed on it, exactly as printed, else null'
+    },
     confidence: {
       type: 'object',
       additionalProperties: false,
@@ -1282,7 +1439,7 @@ const EXTRACT_SCHEMA = {
       required: ['merchant', 'date', 'total', 'category']
     }
   },
-  required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'confidence']
+  required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'receipt_number', 'confidence']
 };
 const extractReceipt = async (pageDataUrls, apiKey, categories, tags) => {
   if (!apiKey) {
@@ -1615,8 +1772,8 @@ const csvEscape = v => {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 };
 const buildCSV = receipts => {
-  const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'comments', 'pages', 'needs_review']];
-  receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
+  const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'receipt_number', 'comments', 'pages', 'needs_review']];
+  receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.receiptNo || '', r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
   return rows.map(r => r.map(csvEscape).join(',')).join('\n');
 };
 const safeName = t => String(t || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
@@ -1676,7 +1833,10 @@ const normalisePageBlob = async blob => {
 };
 const makeThumb = async blob => {
   const c = await blobToCanvas(blob, 220);
-  return c.toDataURL('image/jpeg', 0.7);
+  const url = c.toDataURL('image/jpeg', 0.7);
+  c.width = 0;
+  c.height = 0;
+  return url;
 };
 const importData = async (file, existing) => {
   let manifest = null,
@@ -1814,6 +1974,7 @@ const draftFromExtraction = (data, settings, base) => {
     tags: Array.from(new Set([...(b.tags || []), ...tags])),
     comments,
     items: has(data && data.items_summary) ? data.items_summary : b.items || '',
+    receiptNo: has(data && data.receipt_number) ? String(data.receipt_number).trim() : b.receiptNo || '',
     unsure,
     needsReview: unsure.length > 0
   };
@@ -2267,7 +2428,7 @@ function InAppCamera({
             } catch (__) {}
           }
           if (blob && blob.size > 0) {
-            canvas = await fileToCanvas(blob, 4000);
+            canvas = await fileToCanvas(blob, 3200);
             how = 'photo';
           }
         } catch (_) {}
@@ -2279,7 +2440,9 @@ function InAppCamera({
         canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
-        canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+        canvas.getContext('2d', {
+          willReadFrequently: true
+        }).drawImage(v, 0, 0, w, h);
       }
       canvas.captureHow = how;
       stopStream();
@@ -2654,6 +2817,10 @@ function CropEditor({
     setBusy(true);
     setTimeout(() => {
       try {
+        if (result) {
+          result.colour.width = 0;
+          result.enhanced.width = 0;
+        }
         const colour = warpQuad(canvas, quad, 2800);
         const enhanced = enhanceCanvas(colour);
         setResult({
@@ -2662,6 +2829,9 @@ function CropEditor({
           colourUrl: scaleCanvas(colour, 1600, 0.82),
           enhancedUrl: scaleCanvas(enhanced, 1600, 0.82)
         });
+      } catch (e) {
+        logError('crop', e);
+        alert('Could not process that photo: ' + e.message);
       } finally {
         setBusy(false);
       }
@@ -2671,6 +2841,12 @@ function CropEditor({
     setBusy(true);
     const c = enhance ? result.enhanced : result.colour;
     const blob = await canvasToBlob(c, 0.88);
+    result.colour.width = 0;
+    result.colour.height = 0;
+    result.enhanced.width = 0;
+    result.enhanced.height = 0;
+    canvas.width = 0;
+    canvas.height = 0;
     onDone(blob, enhance);
   };
   if (!preview) return React.createElement("div", {
@@ -2918,6 +3094,9 @@ const dayDiff = (a, b) => {
 const sameTotal = (a, b) => a !== null && a !== undefined && a !== '' && b !== null && b !== undefined && b !== '' && Math.abs(+a - +b) < 0.005;
 const pairKey = (a, b) => [a.id, b.id].sort().join('|');
 const duplicateReason = (a, b) => {
+  const na = normName(a.receiptNo),
+    nb = normName(b.receiptNo);
+  if (na && nb && na.length >= 4 && na === nb) return 'Same receipt number';
   const merch = nameSim(a.merchant, b.merchant) || nameSim(a.items, b.items);
   const days = dayDiff(a.date, b.date);
   if (sameTotal(a.total, b.total) && days === 0) return merch ? 'Same date, total and merchant' : 'Same date and total';
@@ -2947,7 +3126,7 @@ const mergeReceipts = async (keep, drop) => {
   const merged = {
     ...keep
   };
-  for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
+  for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency', 'receiptNo']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
   merged.gstIncluded = !!(keep.gstIncluded || drop.gstIncluded);
   merged.tags = Array.from(new Set([...(keep.tags || []), ...(drop.tags || [])]));
   merged.comments = [keep.comments, drop.comments].filter(Boolean).filter((c, i, arr) => arr.indexOf(c) === i).join('\n');
@@ -2972,7 +3151,10 @@ function DupCard({
   r,
   cats,
   label,
-  onView
+  onView,
+  onEdit,
+  onReread,
+  reading
 }) {
   const col = catColour(r.category, cats);
   return React.createElement("div", {
@@ -3024,7 +3206,9 @@ function DupCard({
     className: "small"
   }, fmtDate(r.date) || 'No date', " · ", React.createElement("span", {
     className: "amt"
-  }, fmtMoney(r.total, r.currency) || 'No total')), React.createElement("div", {
+  }, fmtMoney(r.total, r.currency) || 'No total'), r.receiptNo ? React.createElement("span", {
+    className: "muted"
+  }, " · #", r.receiptNo) : null), React.createElement("div", {
     className: "chips",
     style: {
       marginTop: 4
@@ -3050,7 +3234,20 @@ function DupCard({
       marginTop: 4,
       whiteSpace: 'pre-wrap'
     }
-  }, r.comments));
+  }, r.comments), React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 8,
+      gap: 6
+    }
+  }, React.createElement("button", {
+    className: "chip btn",
+    onClick: onEdit
+  }, "Edit"), (r.pages || []).length > 0 && React.createElement("button", {
+    className: "chip btn",
+    disabled: !!reading,
+    onClick: onReread
+  }, reading ? 'Reading...' : 'Read again')));
 }
 function DuplicateReview({
   pairs,
@@ -3058,11 +3255,76 @@ function DuplicateReview({
   setSettings,
   onResolved,
   onClose,
-  newId
+  newId,
+  onEdited
 }) {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState({});
+  const [edit, setEdit] = useState(null);
+  const [reading, setReading] = useState(null);
+  useBack(!!edit, () => setEdit(null));
+  const live = r => over[r.id] || r;
+  const openEdit = async (r, draft) => {
+    const pages = [];
+    for (const pid of r.pages || []) {
+      const b = await dbGetImageBlob(pid);
+      if (b) pages.push({
+        id: pid,
+        blob: b,
+        url: URL.createObjectURL(b)
+      });
+    }
+    setEdit({
+      r,
+      pages,
+      draft: draft || {
+        ...r,
+        total: r.total ?? '',
+        gstIncluded: !!r.gstIncluded,
+        tags: r.tags || []
+      }
+    });
+  };
+  const reread = async r => {
+    if (!(r.pages || []).length) return;
+    setReading(r.id);
+    try {
+      const blobs = [];
+      for (const pid of r.pages) {
+        const b = await dbGetImageBlob(pid);
+        if (b) blobs.push(b);
+      }
+      const data = await extractPages(blobs, settings);
+      await openEdit(r, {
+        ...draftFromExtraction(data, settings, r),
+        total: undefined
+      });
+    } catch (e) {
+      alert(extractErrMsg(e));
+    }
+    setReading(null);
+  };
+  const saveEdit = async rec => {
+    const full = {
+      ...edit.r,
+      ...rec,
+      id: edit.r.id,
+      pages: edit.r.pages,
+      thumb: edit.r.thumb,
+      updatedAt: new Date().toISOString()
+    };
+    await dbPut('receipts', full);
+    setOver(o => ({
+      ...o,
+      [full.id]: full
+    }));
+    if (onEdited) onEdited(full);
+    edit.pages.forEach(p => URL.revokeObjectURL(p.url));
+    setEdit(null);
+  };
   const [viewer, setViewer] = useState(null);
+  useBack(!!viewer, () => setViewer(null));
   useEffect(() => () => {
     if (viewer) viewer.urls.forEach(u => URL.revokeObjectURL(u));
   }, [viewer]);
@@ -3096,8 +3358,24 @@ function DuplicateReview({
     next();
   };
   if (!pair) return null;
-  const left = newId && pair.a.id === newId ? pair.b : pair.a,
-    right = newId && pair.a.id === newId ? pair.a : pair.b;
+  if (edit) {
+    const d = edit.draft;
+    if (d.total === undefined) d.total = edit.r.total ?? '';
+    return React.createElement(ReceiptForm, {
+      draft: d,
+      pages: edit.pages,
+      settings: settings,
+      setSettings: setSettings,
+      onSave: saveEdit,
+      onCancel: () => {
+        edit.pages.forEach(p => URL.revokeObjectURL(p.url));
+        setEdit(null);
+      },
+      title: "Edit this entry"
+    });
+  }
+  const left = live(newId && pair.a.id === newId ? pair.b : pair.a),
+    right = live(newId && pair.a.id === newId ? pair.a : pair.b);
   const leftLabel = newId ? 'Existing' : 'A',
     rightLabel = newId ? 'Just added' : 'B';
   return React.createElement("div", {
@@ -3136,12 +3414,18 @@ function DuplicateReview({
     r: left,
     cats: settings.categories,
     label: leftLabel,
-    onView: () => view(left)
+    onView: () => view(left),
+    onEdit: () => openEdit(left),
+    onReread: () => reread(left),
+    reading: reading === left.id
   }), React.createElement(DupCard, {
     r: right,
     cats: settings.categories,
     label: rightLabel,
-    onView: () => view(right)
+    onView: () => view(right),
+    onEdit: () => openEdit(right),
+    onReread: () => reread(right),
+    reading: reading === right.id
   })), React.createElement("div", {
     style: {
       padding: '0 12px',
@@ -3215,6 +3499,12 @@ function CaptureFlow({
   receipts
 }) {
   const [stage, setStage] = useState('choose');
+  useBack(stage !== 'choose', () => {
+    if (stage === 'camera') setStage(pages.length ? 'pages' : 'choose');else if (stage === 'crop') {
+      setRawCanvas(null);
+      setStage('camera');
+    } else if (stage === 'review' || stage === 'pages' || stage === 'dup') setStage(pages.length ? 'pages' : 'choose');else setStage('choose');
+  });
   const fileRef = useRef(null);
   const [rawCanvas, setRawCanvas] = useState(null);
   const [pages, setPages] = useState([]);
@@ -3226,7 +3516,7 @@ function CaptureFlow({
   };
   const onPick = async file => {
     try {
-      const c = await fileToCanvas(file, 3600);
+      const c = await fileToCanvas(file, 3200);
       setRawCanvas(c);
       setStage('crop');
     } catch (e) {
@@ -3323,6 +3613,20 @@ function CaptureFlow({
         removedId: null
       };
       onSaved(d.saved, d.removedId);
+    },
+    onEdited: full => {
+      if (full.id === dupState.saved.id) {
+        dupRef.current = {
+          ...(dupRef.current || {
+            removedId: null
+          }),
+          saved: full
+        };
+        setDupState(ds => ({
+          ...ds,
+          saved: full
+        }));
+      }
     }
   });
   if (stage === 'choose') return React.createElement("div", {
@@ -3818,6 +4122,12 @@ function ReceiptForm({
     addLabel: "New tag"
   })), React.createElement("div", {
     className: "field"
+  }, React.createElement("label", null, "Receipt or invoice number"), React.createElement("input", {
+    value: r.receiptNo || '',
+    onChange: e => set('receiptNo', e.target.value),
+    placeholder: "As printed, if any"
+  })), React.createElement("div", {
+    className: "field"
   }, React.createElement("label", null, "Comments"), React.createElement("textarea", {
     value: r.comments || '',
     onChange: e => set('comments', e.target.value),
@@ -3939,6 +4249,10 @@ function ReceiptDetail({
   const [rescan, setRescan] = useState(null);
   const [reading, setReading] = useState(false);
   const [readErr, setReadErr] = useState(null);
+  useBack(editing, () => setEditing(false));
+  useBack(viewer !== null, () => setViewer(null));
+  useBack(adding, () => setAdding(false));
+  useBack(!!rescan, () => setRescan(null));
   const reread = async () => {
     if (!pages.length) return;
     setReading(true);
@@ -4151,7 +4465,13 @@ function ReceiptDetail({
     }
   }, React.createElement("span", {
     className: "k"
-  }, "GST"), React.createElement("span", null, receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'), receipt.comments && React.createElement(React.Fragment, null, React.createElement("span", {
+  }, "GST"), React.createElement("span", null, receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'), receipt.receiptNo && React.createElement(React.Fragment, null, React.createElement("span", {
+    className: "k"
+  }, "Receipt no."), React.createElement("span", {
+    style: {
+      fontFamily: 'monospace'
+    }
+  }, receipt.receiptNo)), receipt.comments && React.createElement(React.Fragment, null, React.createElement("span", {
     className: "k"
   }, "Comments"), React.createElement("span", {
     style: {
@@ -4202,9 +4522,10 @@ function AddPageFlow({
   onCancel
 }) {
   const [canvas, setCanvas] = useState(null);
+  useBack(!!canvas, () => setCanvas(null));
   const onPick = async f => {
     try {
-      setCanvas(await fileToCanvas(f, 3600));
+      setCanvas(await fileToCanvas(f, 3200));
     } catch (_) {
       onCancel();
     }
@@ -4236,16 +4557,34 @@ const filterCount = f => (f.from ? 1 : 0) + (f.to ? 1 : 0) + f.cats.length + f.t
 function ReceiptRow({
   r,
   cats,
-  onOpen
+  onOpen,
+  selectable,
+  selected
 }) {
   const col = catColour(r.category, cats);
   return React.createElement("div", {
     className: "card row",
     onClick: onOpen,
     style: {
-      cursor: 'pointer'
+      cursor: 'pointer',
+      borderColor: selected ? 'var(--navy)' : undefined,
+      background: selected ? 'var(--navy-soft)' : undefined
     }
-  }, r.thumb ? React.createElement("img", {
+  }, selectable && React.createElement("div", {
+    style: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      border: '2px solid ' + (selected ? 'var(--navy)' : 'var(--line)'),
+      background: selected ? 'var(--navy)' : '#fff',
+      color: '#fff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: 14,
+      flexShrink: 0
+    }
+  }, selected ? '✓' : ''), r.thumb ? React.createElement("img", {
     className: "thumb",
     src: r.thumb
   }) : React.createElement("div", {
@@ -4306,9 +4645,13 @@ function ReceiptList({
   settings,
   onOpen,
   filter,
-  setFilter
+  setFilter,
+  q,
+  setQ,
+  selecting,
+  selected,
+  onSelectAll
 }) {
-  const [q, setQ] = useState('');
   const [panel, setPanel] = useState(false);
   const f = {
     ...EMPTY_FILTER,
@@ -4323,7 +4666,7 @@ function ReceiptList({
     if (f.to) list = list.filter(r => (r.date || '') <= f.to);
     if (q.trim()) {
       const s = q.trim().toLowerCase();
-      list = list.filter(r => [r.merchant, r.items, r.comments, r.category, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s));
+      list = list.filter(r => [r.merchant, r.items, r.comments, r.category, r.receiptNo, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s));
     }
     const byDate = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
     if (f.sort === 'date_asc') list.sort(byDate);else if (f.sort === 'amount_desc') list.sort((a, b) => (+b.total || 0) - (+a.total || 0));else if (f.sort === 'amount_asc') list.sort((a, b) => (+a.total || 0) - (+b.total || 0));else list.sort((a, b) => byDate(b, a));
@@ -4510,7 +4853,13 @@ function ReceiptList({
     })
   }, "Needs check x")), React.createElement("div", {
     className: "total-line"
-  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " · ", sortLabel), React.createElement("span", {
+  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " · ", sortLabel, selecting && React.createElement("button", {
+    className: "chip btn",
+    style: {
+      marginLeft: 8
+    },
+    onClick: () => onSelectAll(shown.map(r => r.id))
+  }, "Select all shown")), React.createElement("span", {
     className: "amt"
   }, fmtMoney(total, settings.currency))), !shown.length && React.createElement("div", {
     className: "empty"
@@ -4524,7 +4873,9 @@ function ReceiptList({
     key: r.id,
     r: r,
     cats: settings.categories,
-    onOpen: () => onOpen(r)
+    onOpen: () => onOpen(r),
+    selectable: selecting,
+    selected: selecting && selected.has(r.id)
   })))));
 }
 function Settings({
@@ -4802,6 +5153,10 @@ function Settings({
       if (!persisted) persisted = await navigator.storage.persist();
     } catch (_) {}
     const imgs = await dbGetAll('images');
+    let errors = [];
+    try {
+      errors = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
+    } catch (_) {}
     setDiag({
       receipts: receipts.length,
       images: imgs.length,
@@ -4809,7 +5164,9 @@ function Settings({
       quota: est,
       persisted,
       standalone: window.matchMedia('(display-mode: standalone)').matches,
-      ua: navigator.userAgent
+      ua: navigator.userAgent,
+      errors,
+      mem: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB heap' : ''
     });
   };
   const mb = b => (b / 1048576).toFixed(1) + ' MB';
@@ -5102,7 +5459,40 @@ function Settings({
       marginTop: 8,
       whiteSpace: 'pre-wrap'
     }
-  }, `${diag.receipts} receipts, ${diag.images} images, ${mb(diag.bytes)}\n`, diag.quota ? `Using ${mb(diag.quota.usage)} of ${mb(diag.quota.quota)} available\n` : '', `Persistent storage: ${diag.persisted === null ? 'unknown' : diag.persisted ? 'granted' : 'not granted (export regularly)'}\n`, `Installed as app: ${diag.standalone ? 'yes' : 'no'}`)));
+  }, `${diag.receipts} receipts, ${diag.images} images, ${mb(diag.bytes)}\n`, diag.quota ? `Using ${mb(diag.quota.usage)} of ${mb(diag.quota.quota)} available\n` : '', `Persistent storage: ${diag.persisted === null ? 'unknown' : diag.persisted ? 'granted' : 'not granted (export regularly)'}\n`, `Installed as app: ${diag.standalone ? 'yes' : 'no'}${diag.mem ? '\n' + diag.mem : ''}`, diag.errors.length > 0 && React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, React.createElement("div", {
+    style: {
+      fontWeight: 700
+    }
+  }, "Recent errors (", diag.errors.length, ")"), diag.errors.slice(0, 5).map((e, i) => React.createElement("div", {
+    key: i,
+    style: {
+      marginTop: 4,
+      fontFamily: 'monospace',
+      fontSize: 11
+    }
+  }, e.t.slice(0, 16).replace('T', ' '), " [", e.where, "] ", e.msg, e.mem ? ' (' + e.mem + ')' : '')), React.createElement("div", {
+    className: "row",
+    style: {
+      marginTop: 6
+    }
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      try {
+        navigator.clipboard.writeText(JSON.stringify(diag.errors, null, 2));
+      } catch (_) {}
+    }
+  }, "Copy errors"), React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      localStorage.removeItem(ERR_KEY);
+      runDiag();
+    }
+  }, "Clear"))))));
 }
 function App() {
   const [settings, setSettingsState] = useState(loadSettings);
@@ -5141,6 +5531,110 @@ function App() {
     setOpen(r);
   };
   const [dupReview, setDupReview] = useState(false);
+  useBack(capturing, () => setCapturing(false));
+  useBack(!!open, () => setOpen(null));
+  useBack(showSettings, () => setShowSettings(false));
+  useBack(dupReview, () => setDupReview(false));
+  const [q, setQ] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulk, setBulk] = useState(null);
+  useBack(selecting && !bulk, () => {
+    setSelecting(false);
+    setSelected(new Set());
+  });
+  const toggleSel = r => setSelected(prev => {
+    const n = new Set(prev);
+    if (n.has(r.id)) n.delete(r.id);else n.add(r.id);
+    return n;
+  });
+  const selectAll = ids => setSelected(prev => {
+    const n = new Set(prev);
+    const all = ids.every(id => n.has(id));
+    ids.forEach(id => all ? n.delete(id) : n.add(id));
+    return n;
+  });
+  const bulkReread = async () => {
+    const targets = receipts.filter(r => selected.has(r.id) && (r.pages || []).length);
+    if (!targets.length) return;
+    if (!settings.apiKey) {
+      alert('Add your API key in Settings first.');
+      return;
+    }
+    const state = {
+      done: 0,
+      total: targets.length,
+      errors: [],
+      stop: false
+    };
+    setBulk({
+      ...state
+    });
+    for (const r of targets) {
+      if (state.stop) break;
+      try {
+        const blobs = [];
+        for (const pid of r.pages) {
+          const b = await dbGetImageBlob(pid);
+          if (b) blobs.push(b);
+        }
+        const data = await extractPages(blobs, settings);
+        const d = draftFromExtraction(data, settings, r);
+        const full = {
+          ...r,
+          ...d,
+          id: r.id,
+          pages: r.pages,
+          thumb: r.thumb,
+          createdAt: r.createdAt,
+          total: d.total === '' ? null : d.total,
+          updatedAt: new Date().toISOString()
+        };
+        await dbPut('receipts', full);
+        setReceipts(list => list.map(x => x.id === r.id ? full : x));
+      } catch (e) {
+        state.errors.push((r.items || r.merchant || r.id) + ': ' + e.message);
+        logError('bulk-reread', e);
+      }
+      state.done++;
+      setBulk({
+        ...state
+      });
+    }
+    setBulk(b => ({
+      ...b,
+      finished: true
+    }));
+  };
+  const bulkDelete = async () => {
+    const targets = receipts.filter(r => selected.has(r.id));
+    for (const r of targets) await deleteReceiptFully(r);
+    setReceipts(list => list.filter(x => !selected.has(x.id)));
+    setSelected(new Set());
+    setSelecting(false);
+  };
+  const [armDelete, setArmDelete] = useState(false);
+  useEffect(() => {
+    if (!armDelete) return;
+    const t = setTimeout(() => setArmDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [armDelete]);
+  const listScroll = useRef(0);
+  const openReceipt = r => {
+    if (selecting) {
+      toggleSel(r);
+      return;
+    }
+    listScroll.current = window.scrollY;
+    setOpen(r);
+  };
+  const onList = !capturing && !open && !showSettings && !dupReview;
+  useEffect(() => {
+    if (onList && loaded) {
+      const y = listScroll.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, [onList, loaded]);
   const dupPairs = useMemo(() => findDuplicates(receipts, settings.notDuplicates), [receipts, settings.notDuplicates]);
   const onChanged = r => {
     setReceipts(list => list.map(x => x.id === r.id ? r : x));
@@ -5162,7 +5656,8 @@ function App() {
     settings: settings,
     setSettings: setSettings,
     onResolved: () => reload(),
-    onClose: () => setDupReview(false)
+    onClose: () => setDupReview(false),
+    onEdited: full => setReceipts(list => list.map(x => x.id === full.id ? full : x))
   });
   if (open) return React.createElement(ReceiptDetail, {
     receipt: open,
@@ -5206,14 +5701,89 @@ function App() {
     className: "row"
   }, React.createElement("span", {
     className: "small muted"
-  }, receipts.length, " total"), React.createElement("button", {
+  }, receipts.length, " total"), !selecting && React.createElement("button", {
+    className: "btn",
+    style: {
+      padding: '8px 12px'
+    },
+    onClick: () => setSelecting(true)
+  }, "Select"), React.createElement("button", {
     className: "btn",
     style: {
       padding: '8px 12px'
     },
     onClick: () => setShowSettings(true),
     "aria-label": "Settings"
-  }, "⚙️"))), loaded && dupPairs.length > 0 && React.createElement("div", {
+  }, "⚙️"))), selecting && React.createElement("div", {
+    style: {
+      position: 'fixed',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 32,
+      background: 'var(--card)',
+      borderTop: '1px solid var(--line)',
+      padding: '10px 12px calc(10px + var(--safe-b))',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    }
+  }, bulk ? React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "row",
+    style: {
+      justifyContent: 'space-between'
+    }
+  }, React.createElement("span", null, bulk.finished ? 'Done: ' : 'Reading ', bulk.done, " of ", bulk.total, bulk.errors.length ? `, ${bulk.errors.length} failed` : ''), !bulk.finished ? React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      bulk.stop = true;
+    }
+  }, "Stop") : React.createElement("button", {
+    className: "btn primary",
+    onClick: () => {
+      setBulk(null);
+      setSelecting(false);
+      setSelected(new Set());
+    }
+  }, "Close")), React.createElement("div", {
+    style: {
+      height: 6,
+      background: 'var(--line)',
+      borderRadius: 3
+    }
+  }, React.createElement("div", {
+    style: {
+      height: 6,
+      width: `${bulk.total ? bulk.done / bulk.total * 100 : 0}%`,
+      background: 'var(--navy)',
+      borderRadius: 3,
+      transition: 'width 0.3s'
+    }
+  })), bulk.errors.length > 0 && React.createElement("div", {
+    className: "small muted",
+    style: {
+      maxHeight: 60,
+      overflow: 'auto'
+    }
+  }, bulk.errors.join('\n'))) : React.createElement("div", {
+    className: "row"
+  }, React.createElement("button", {
+    className: "btn",
+    onClick: () => {
+      setSelecting(false);
+      setSelected(new Set());
+    }
+  }, "Cancel"), React.createElement("span", {
+    className: "grow small muted"
+  }, selected.size, " selected"), React.createElement("button", {
+    className: 'btn danger' + (armDelete ? ' armed' : ''),
+    disabled: !selected.size,
+    onClick: () => armDelete ? bulkDelete() : setArmDelete(true)
+  }, armDelete ? 'Confirm delete' : 'Delete'), React.createElement("button", {
+    className: "btn primary",
+    disabled: !selected.size,
+    onClick: bulkReread
+  }, "Read again (", receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length, ")"))), loaded && dupPairs.length > 0 && React.createElement("div", {
     className: "banner",
     style: {
       background: 'var(--amber-soft)',
@@ -5230,10 +5800,15 @@ function App() {
   }, "Loading...") : React.createElement(ReceiptList, {
     receipts: receipts,
     settings: settings,
-    onOpen: setOpen,
+    onOpen: openReceipt,
     filter: filter,
-    setFilter: setFilter
-  }), React.createElement("button", {
+    setFilter: setFilter,
+    q: q,
+    setQ: setQ,
+    selecting: selecting,
+    selected: selected,
+    onSelectAll: selectAll
+  }), !selecting && React.createElement("button", {
     className: "fab",
     onClick: () => setCapturing(true),
     "aria-label": "Add receipt"
@@ -5247,7 +5822,7 @@ window.__receipts = {
   dbGetAll,
   detectReceipt
 };
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App, null));
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null, React.createElement(App, null)));
 </script>
 </body>
 </html>

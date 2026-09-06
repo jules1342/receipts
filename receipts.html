@@ -19,7 +19,7 @@
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; overscroll-behavior-y: none; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
@@ -100,7 +100,59 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06k-dup-viewer';
+    const BUILD_VERSION = '2026-09-06p-dup-edit';
+    // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
+    const ERR_KEY = 'receipts_errors';
+    const logError = (where, e) => {
+      try {
+        const list = JSON.parse(localStorage.getItem(ERR_KEY) || '[]');
+        list.unshift({ t: new Date().toISOString(), where, msg: String(e && e.message || e), stack: String(e && e.stack || '').slice(0, 600), build: BUILD_VERSION, mem: (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : '') });
+        localStorage.setItem(ERR_KEY, JSON.stringify(list.slice(0, 20)));
+      } catch (_) {}
+    };
+    window.addEventListener('error', (ev) => logError('window', ev.error || ev.message));
+    window.addEventListener('unhandledrejection', (ev) => logError('promise', ev.reason));
+    // Android Back in an installed PWA closes the app when there is no history. Every sheet registers a close handler
+    // and pushes one history entry while open; Back pops it and runs the handler. Closing from a button consumes the
+    // entry silently so the stack never drifts.
+    const nav = { stack: [], pendingBacks: 0, queue: [], id: 0 };
+    const navFlush = () => { while (nav.queue.length) { const e = nav.queue.shift(); nav.stack.push(e); try { history.pushState({ sheet: e.id }, ''); } catch (_) {} } };
+    window.addEventListener('popstate', () => {
+      if (nav.pendingBacks > 0) { nav.pendingBacks--; if (!nav.pendingBacks) navFlush(); return; } // a back we asked for
+      const top = nav.stack.pop(); if (top) top.fn(); // the phone's Back: close the topmost sheet
+    });
+    function useBack(open, onBack) {
+      const ref = useRef(onBack); ref.current = onBack;
+      useEffect(() => {
+        if (!open) return;
+        const entry = { id: ++nav.id, fn: () => ref.current() };
+        // a push while one of our backs is in flight would be swallowed by that back, so queue it until the back lands
+        if (nav.pendingBacks > 0) nav.queue.push(entry); else { nav.stack.push(entry); try { history.pushState({ sheet: entry.id }, ''); } catch (_) {} }
+        return () => {
+          const qi = nav.queue.indexOf(entry); if (qi >= 0) { nav.queue.splice(qi, 1); return; }
+          const i = nav.stack.indexOf(entry); if (i < 0) return; // already popped by Back
+          nav.stack.splice(i, 1);
+          // closed from a button: consume our history entry only when it is the one on top
+          if (history.state && history.state.sheet === entry.id) { nav.pendingBacks++; try { history.back(); } catch (_) { nav.pendingBacks--; } }
+        };
+      }, [open]);
+    }
+    class ErrorBoundary extends React.Component {
+      constructor(p) { super(p); this.state = { err: null }; }
+      static getDerivedStateFromError(err) { return { err }; }
+      componentDidCatch(err, info) { logError('render', err); }
+      render() {
+        if (!this.state.err) return this.props.children;
+        return (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Something went wrong</div>
+            <div className="small muted" style={{ marginBottom: 16, wordBreak: 'break-word' }}>{String(this.state.err && this.state.err.message || this.state.err)}</div>
+            <button className="btn primary" onClick={() => window.location.reload()}>Reload</button>
+            <div className="small muted" style={{ marginTop: 12 }}>Your receipts are safe. The error is recorded under Settings, Diagnostics.</div>
+          </div>
+        );
+      }
+    }
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -180,7 +232,7 @@
       const scale = Math.min(1, maxDim / Math.max(w, h));
       const c = document.createElement('canvas');
       c.width = Math.round(w * scale); c.height = Math.round(h * scale);
-      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      c.getContext('2d', { willReadFrequently: true }).drawImage(src, 0, 0, c.width, c.height);
       if (bmp && bmp.close) bmp.close();
       return c;
     };
@@ -188,8 +240,9 @@
       const scale = Math.min(1, maxDim / Math.max(src.width, src.height));
       const c = document.createElement('canvas');
       c.width = Math.round(src.width * scale); c.height = Math.round(src.height * scale);
-      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-      return c.toDataURL('image/jpeg', q);
+      c.getContext('2d', { willReadFrequently: true }).drawImage(src, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', q); c.width = 0; c.height = 0;
+      return url;
     };
     const blobToCanvas = async (blob, maxDim) => fileToCanvas(blob, maxDim);
 
@@ -200,7 +253,7 @@
       const sc = Math.min(1, 560 / Math.max(W, H));
       const w = Math.max(8, Math.round(W * sc)), h = Math.max(8, Math.round(H * sc));
       const c = document.createElement('canvas'); c.width = w; c.height = h;
-      const ctx = c.getContext('2d'); ctx.drawImage(canvas, 0, 0, w, h);
+      const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(canvas, 0, 0, w, h);
       const d = ctx.getImageData(0, 0, w, h).data;
       // Channels: luminance, R, G, B, saturation. Paper on a white desk often differs only in tint or in a soft shadow.
       const nCh = 5; const ch = []; for (let k = 0; k < nCh; k++) ch.push(new Float32Array(w * h));
@@ -447,9 +500,9 @@
       outW = Math.max(2, Math.round(outW * s)); outH = Math.max(2, Math.round(outH * s));
       const Hm = solveHomography(quad, [{ x: 0, y: 0 }, { x: outW, y: 0 }, { x: outW, y: outH }, { x: 0, y: outH }]);
       const sw = canvas.width, sh = canvas.height;
-      const sd = canvas.getContext('2d').getImageData(0, 0, sw, sh).data;
+      const sd = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
       const out = document.createElement('canvas'); out.width = outW; out.height = outH;
-      const octx = out.getContext('2d');
+      const octx = out.getContext('2d', { willReadFrequently: true });
       const od = octx.createImageData(outW, outH); const o = od.data;
       for (let Y = 0; Y < outH; Y++) {
         for (let X = 0; X < outW; X++) {
@@ -472,22 +525,39 @@
     // Document-style enhancement: divide by local mean so paper goes white and ink stays dark
     const enhanceCanvas = (canvas) => {
       const w = canvas.width, h = canvas.height;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       const img = ctx.getImageData(0, 0, w, h); const d = img.data;
       const g = new Float32Array(w * h);
       for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      const I = new Float64Array((w + 1) * (h + 1));
-      for (let y = 1; y <= h; y++) { let rs = 0; for (let x = 1; x <= w; x++) { rs += g[(y - 1) * w + x - 1]; I[y * (w + 1) + x] = I[(y - 1) * (w + 1) + x] + rs; } }
       const R = Math.max(8, Math.round(Math.max(w, h) / 24));
-      const out = document.createElement('canvas'); out.width = w; out.height = h;
-      const octx = out.getContext('2d'); const od = octx.createImageData(w, h); const o = od.data;
+      // local mean by two running-sum passes (rows, then columns); edge windows are clipped so the mean stays exact
+      const tmp = new Float32Array(w * h);
       for (let y = 0; y < h; y++) {
-        const y0 = Math.max(0, y - R), y1 = Math.min(h, y + R + 1);
+        const row = y * w; let sum = 0;
+        for (let x = 0; x <= Math.min(w - 1, R); x++) sum += g[row + x];
         for (let x = 0; x < w; x++) {
-          const x0 = Math.max(0, x - R), x1 = Math.min(w, x + R + 1);
-          const area = (y1 - y0) * (x1 - x0);
-          const mean = (I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0]) / area;
-          let v = g[y * w + x] / (mean + 4) * 232;
+          const x0 = x - R - 1, x1 = x + R;
+          if (x0 >= 0) sum -= g[row + x0];
+          if (x1 < w && x > 0) sum += g[row + x1];
+          tmp[row + x] = sum / (Math.min(w - 1, x + R) - Math.max(0, x - R) + 1);
+        }
+      }
+      const mean = new Float32Array(w * h);
+      for (let x = 0; x < w; x++) {
+        let sum = 0;
+        for (let y = 0; y <= Math.min(h - 1, R); y++) sum += tmp[y * w + x];
+        for (let y = 0; y < h; y++) {
+          const y0 = y - R - 1, y1 = y + R;
+          if (y0 >= 0) sum -= tmp[y0 * w + x];
+          if (y1 < h && y > 0) sum += tmp[y1 * w + x];
+          mean[y * w + x] = sum / (Math.min(h - 1, y + R) - Math.max(0, y - R) + 1);
+        }
+      }
+      const out = document.createElement('canvas'); out.width = w; out.height = h;
+      const octx = out.getContext('2d', { willReadFrequently: true }); const od = octx.createImageData(w, h); const o = od.data;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let v = g[y * w + x] / (mean[y * w + x] + 4) * 232;
           v = v > 255 ? 255 : v; v = (v - 128) * 1.15 + 128; v = v < 0 ? 0 : v > 255 ? 255 : v;
           const oi = (y * w + x) * 4; o[oi] = o[oi + 1] = o[oi + 2] = v; o[oi + 3] = 255;
         }
@@ -510,13 +580,14 @@
         suggested_tags: { type: 'array', items: { type: 'string' }, description: 'Subset of the allowed tags that clearly apply' },
         items_summary: { type: 'string', description: 'One line: what was bought, main items only' },
         warranty_note: { type: ['string', 'null'], description: 'Any warranty period or product serial printed on the receipt, else null' },
+        receipt_number: { type: ['string', 'null'], description: 'The receipt, invoice, tax invoice or transaction number printed on it, exactly as printed, else null' },
         confidence: {
           type: 'object', additionalProperties: false,
           properties: { merchant: { type: 'string', enum: ['high', 'low'] }, date: { type: 'string', enum: ['high', 'low'] }, total: { type: 'string', enum: ['high', 'low'] }, category: { type: 'string', enum: ['high', 'low'] } },
           required: ['merchant', 'date', 'total', 'category']
         }
       },
-      required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'confidence']
+      required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'receipt_number', 'confidence']
     };
     const extractReceipt = async (pageDataUrls, apiKey, categories, tags) => {
       if (!apiKey) { const e = new Error('No API key. Add one in Settings.'); e.kind = 'no_key'; throw e; }
@@ -671,8 +742,8 @@
     // ---------- Export / import helpers ----------
     const csvEscape = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const buildCSV = (receipts) => {
-      const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'comments', 'pages', 'needs_review']];
-      receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
+      const rows = [['id', 'date', 'item', 'merchant', 'total', 'gst_included', 'gst', 'currency', 'category', 'tags', 'receipt_number', 'comments', 'pages', 'needs_review']];
+      receipts.forEach(r => rows.push([r.id, r.date, r.items, r.merchant, r.total, r.gstIncluded ? 'yes' : 'no', r.gstIncluded ? gstOf(r.total) : '', r.currency, r.category, (r.tags || []).join('; '), r.receiptNo || '', r.comments, (r.pages || []).length, r.needsReview ? 'yes' : 'no']));
       return rows.map(r => r.map(csvEscape).join(',')).join('\n');
     };
     // Image file names are descriptive, with the page id in brackets so a restore or import can map them back:
@@ -705,7 +776,7 @@
         return out && out.size < blob.size * 0.85 ? out : blob;
       } catch (_) { return blob; }
     };
-    const makeThumb = async (blob) => { const c = await blobToCanvas(blob, 220); return c.toDataURL('image/jpeg', 0.7); };
+    const makeThumb = async (blob) => { const c = await blobToCanvas(blob, 220); const url = c.toDataURL('image/jpeg', 0.7); c.width = 0; c.height = 0; return url; };
     const importData = async (file, existing) => {
       let manifest = null, images = [];
       const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
@@ -774,6 +845,7 @@
         category: cat || b.category || '',
         tags: Array.from(new Set([...(b.tags || []), ...tags])),
         comments, items: has(data && data.items_summary) ? data.items_summary : (b.items || ''),
+        receiptNo: has(data && data.receipt_number) ? String(data.receipt_number).trim() : (b.receiptNo || ''),
         unsure, needsReview: unsure.length > 0
       };
     };
@@ -917,12 +989,12 @@
               const ic = new ImageCapture(track); let opts = {};
               try { const pc = await ic.getPhotoCapabilities(); if (pc.imageWidth && pc.imageHeight) opts = { imageWidth: pc.imageWidth.max, imageHeight: pc.imageHeight.max }; } catch (_) {}
               let blob = null; try { blob = await ic.takePhoto(opts); } catch (_) { try { blob = await ic.takePhoto(); } catch (__) {} }
-              if (blob && blob.size > 0) { canvas = await fileToCanvas(blob, 4000); how = 'photo'; }
+              if (blob && blob.size > 0) { canvas = await fileToCanvas(blob, 3200); how = 'photo'; }
             } catch (_) {}
           }
           if (!canvas) {
             const w = v.videoWidth, h = v.videoHeight; if (!w || !h) throw new Error('camera not ready yet');
-            canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+            canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; canvas.getContext('2d', { willReadFrequently: true }).drawImage(v, 0, 0, w, h);
           }
           canvas.captureHow = how;
           stopStream();
@@ -1013,13 +1085,21 @@
         setBusy(true);
         setTimeout(() => {
           try {
+            if (result) { result.colour.width = 0; result.enhanced.width = 0; } // drop a previous attempt before making another
             const colour = warpQuad(canvas, quad, 2800);
             const enhanced = enhanceCanvas(colour);
             setResult({ colour, enhanced, colourUrl: scaleCanvas(colour, 1600, 0.82), enhancedUrl: scaleCanvas(enhanced, 1600, 0.82) });
-          } finally { setBusy(false); }
+          } catch (e) { logError('crop', e); alert('Could not process that photo: ' + e.message); }
+          finally { setBusy(false); }
         }, 30);
       };
-      const finish = async () => { setBusy(true); const c = enhance ? result.enhanced : result.colour; const blob = await canvasToBlob(c, 0.88); onDone(blob, enhance); };
+      const finish = async () => {
+        setBusy(true);
+        const c = enhance ? result.enhanced : result.colour; const blob = await canvasToBlob(c, 0.88);
+        result.colour.width = 0; result.colour.height = 0; result.enhanced.width = 0; result.enhanced.height = 0;
+        canvas.width = 0; canvas.height = 0; // the raw capture is no longer needed
+        onDone(blob, enhance);
+      };
       if (!preview) return <div className="sheet" style={{ background: '#000' }} />;
       const dims = `${canvas.width}x${canvas.height}${canvas.captureHow === 'photo' ? ' still' : ''}`;
       if (result) return (
@@ -1081,6 +1161,8 @@
     const pairKey = (a, b) => [a.id, b.id].sort().join('|');
     // Why two receipts look like the same one, or null
     const duplicateReason = (a, b) => {
+      const na = normName(a.receiptNo), nb = normName(b.receiptNo);
+      if (na && nb && na.length >= 4 && na === nb) return 'Same receipt number';
       const merch = nameSim(a.merchant, b.merchant) || nameSim(a.items, b.items);
       const days = dayDiff(a.date, b.date);
       if (sameTotal(a.total, b.total) && days === 0) return merch ? 'Same date, total and merchant' : 'Same date and total';
@@ -1101,7 +1183,7 @@
     const mergeReceipts = async (keep, drop) => {
       const has = (v) => v !== null && v !== undefined && v !== '';
       const merged = { ...keep };
-      for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
+      for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency', 'receiptNo']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
       merged.gstIncluded = !!(keep.gstIncluded || drop.gstIncluded);
       merged.tags = Array.from(new Set([...(keep.tags || []), ...(drop.tags || [])]));
       merged.comments = [keep.comments, drop.comments].filter(Boolean).filter((c, i, arr) => arr.indexOf(c) === i).join('\n');
@@ -1115,7 +1197,7 @@
       return merged;
     };
     const deleteReceiptFully = async (r) => { for (const id of r.pages || []) await dbDel('images', id); await dbDel('receipts', r.id); };
-    function DupCard({ r, cats, label, onView }) {
+    function DupCard({ r, cats, label, onView, onEdit, onReread, reading }) {
       const col = catColour(r.category, cats);
       return (
         <div className="card grow" style={{ margin: 0, padding: 10 }}>
@@ -1123,16 +1205,42 @@
           {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: '#eee' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
           <div style={{ fontWeight: 600, marginTop: 6 }}>{r.items || r.merchant || 'Receipt'}</div>
           <div className="small muted">{r.items ? r.merchant : ''}</div>
-          <div className="small">{fmtDate(r.date) || 'No date'} · <span className="amt">{fmtMoney(r.total, r.currency) || 'No total'}</span></div>
+          <div className="small">{fmtDate(r.date) || 'No date'} · <span className="amt">{fmtMoney(r.total, r.currency) || 'No total'}</span>{r.receiptNo ? <span className="muted"> · #{r.receiptNo}</span> : null}</div>
           <div className="chips" style={{ marginTop: 4 }}>{r.category && <span className="chip" style={{ background: col + '22', color: col }}>{r.category}</span>}{(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}{(r.pages || []).length > 0 && <span className="chip" style={{ background: '#eee', color: '#555' }}>{r.pages.length} page{r.pages.length === 1 ? '' : 's'}</span>}</div>
           {r.comments && <div className="small muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.comments}</div>}
+          <div className="row" style={{ marginTop: 8, gap: 6 }}>
+            <button className="chip btn" onClick={onEdit}>Edit</button>
+            {(r.pages || []).length > 0 && <button className="chip btn" disabled={!!reading} onClick={onReread}>{reading ? 'Reading...' : 'Read again'}</button>}
+          </div>
         </div>
       );
     }
     // Reviews a list of pairs one at a time. onResolved(kind, survivor) is called after each action; onClose when done.
-    function DuplicateReview({ pairs, settings, setSettings, onResolved, onClose, newId }) {
+    function DuplicateReview({ pairs, settings, setSettings, onResolved, onClose, newId, onEdited }) {
       const [i, setI] = useState(0); const [busy, setBusy] = useState(false);
+      const [over, setOver] = useState({}); // id -> receipt as edited here
+      const [edit, setEdit] = useState(null); // { r, draft, pages }
+      const [reading, setReading] = useState(null);
+      useBack(!!edit, () => setEdit(null));
+      const live = (r) => over[r.id] || r;
+      const openEdit = async (r, draft) => {
+        const pages = []; for (const pid of r.pages || []) { const b = await dbGetImageBlob(pid); if (b) pages.push({ id: pid, blob: b, url: URL.createObjectURL(b) }); }
+        setEdit({ r, pages, draft: draft || { ...r, total: r.total ?? '', gstIncluded: !!r.gstIncluded, tags: r.tags || [] } });
+      };
+      const reread = async (r) => {
+        if (!(r.pages || []).length) return;
+        setReading(r.id);
+        try { const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); } const data = await extractPages(blobs, settings); await openEdit(r, { ...draftFromExtraction(data, settings, r), total: undefined }); }
+        catch (e) { alert(extractErrMsg(e)); }
+        setReading(null);
+      };
+      const saveEdit = async (rec) => {
+        const full = { ...edit.r, ...rec, id: edit.r.id, pages: edit.r.pages, thumb: edit.r.thumb, updatedAt: new Date().toISOString() };
+        await dbPut('receipts', full); setOver(o => ({ ...o, [full.id]: full })); if (onEdited) onEdited(full);
+        edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null);
+      };
       const [viewer, setViewer] = useState(null); // { urls, names }
+      useBack(!!viewer, () => setViewer(null));
       useEffect(() => () => { if (viewer) viewer.urls.forEach(u => URL.revokeObjectURL(u)); }, [viewer]);
       const view = async (r) => {
         const urls = [], names = [];
@@ -1143,15 +1251,16 @@
       const next = () => { if (i + 1 < pairs.length) setI(i + 1); else onClose(); };
       const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); } setBusy(false); next(); };
       if (!pair) return null;
+      if (edit) { const d = edit.draft; if (d.total === undefined) d.total = edit.r.total ?? ''; return <ReceiptForm draft={d} pages={edit.pages} settings={settings} setSettings={setSettings} onSave={saveEdit} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} title="Edit this entry" />; }
       // For a fresh capture, show the new one on the right and prefer merging into the existing one on the left
-      const left = newId && pair.a.id === newId ? pair.b : pair.a, right = newId && pair.a.id === newId ? pair.a : pair.b;
+      const left = live(newId && pair.a.id === newId ? pair.b : pair.a), right = live(newId && pair.a.id === newId ? pair.a : pair.b);
       const leftLabel = newId ? 'Existing' : 'A', rightLabel = newId ? 'Just added' : 'B';
       return (
         <div className="sheet" style={{ zIndex: 45 }}>
           {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
           <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{pairs.length > 1 ? ` ${i + 1} of ${pairs.length}` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
-          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} /></div>
+          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} /></div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">
@@ -1173,13 +1282,19 @@
     function CaptureFlow({ settings, setSettings, onSaved, onCancel, existing, receipts }) {
       // existing: receipt being edited to add pages to (optional)
       const [stage, setStage] = useState('choose'); // choose | camera | crop | pages | extracting | review
+      useBack(stage !== 'choose', () => {
+        if (stage === 'camera') setStage(pages.length ? 'pages' : 'choose');
+        else if (stage === 'crop') { setRawCanvas(null); setStage('camera'); }
+        else if (stage === 'review' || stage === 'pages' || stage === 'dup') setStage(pages.length ? 'pages' : 'choose');
+        else setStage('choose');
+      });
       const fileRef = useRef(null);
       const [rawCanvas, setRawCanvas] = useState(null);
       const [pages, setPages] = useState([]); // [{id, blob, url}]
       const [err, setErr] = useState(null);
       const [draft, setDraft] = useState(null);
       const onCapture = (canvas) => { setRawCanvas(canvas); setStage('crop'); };
-      const onPick = async (file) => { try { const c = await fileToCanvas(file, 3600); setRawCanvas(c); setStage('crop'); } catch (e) { setErr('Could not read that image.'); setStage('pages'); } };
+      const onPick = async (file) => { try { const c = await fileToCanvas(file, 3200); setRawCanvas(c); setStage('crop'); } catch (e) { setErr('Could not read that image.'); setStage('pages'); } };
       const onCropDone = async (blob) => {
         const id = uid(); const url = URL.createObjectURL(blob);
         setPages(p => [...p, { id, blob, url }]); setRawCanvas(null); setStage('pages');
@@ -1205,7 +1320,7 @@
       const [dupState, setDupState] = useState(null);
       const dupRef = useRef(null); // the latest survivor, read on close (state would be stale inside the close handler)
       const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gstIncluded: false, currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
-      if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { dupRef.current = survivor ? { saved: survivor, removedId } : { saved: dupState.saved, removedId: null }; }} onClose={() => { const d = dupRef.current || { saved: dupState.saved, removedId: null }; onSaved(d.saved, d.removedId); }} />;
+      if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { dupRef.current = survivor ? { saved: survivor, removedId } : { saved: dupState.saved, removedId: null }; }} onClose={() => { const d = dupRef.current || { saved: dupState.saved, removedId: null }; onSaved(d.saved, d.removedId); }} onEdited={(full) => { if (full.id === dupState.saved.id) { dupRef.current = { ...(dupRef.current || { removedId: null }), saved: full }; setDupState(ds => ({ ...ds, saved: full })); } }} />;
       if (stage === 'choose') return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
@@ -1335,6 +1450,7 @@
               <label>Tags (pick any)</label>
               <ChipPicker multi options={settings.tags} value={r.tags} onChange={v => set('tags', v)} onAdd={addTag} addLabel="New tag" />
             </div>
+            <div className="field"><label>Receipt or invoice number</label><input value={r.receiptNo || ''} onChange={e => set('receiptNo', e.target.value)} placeholder="As printed, if any" /></div>
             <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
             <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">Currency</span><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} style={{ width: 64, padding: '6px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
           </div>
@@ -1373,6 +1489,10 @@
       const [viewer, setViewer] = useState(null);
       const [adding, setAdding] = useState(false);
       const [rescan, setRescan] = useState(null); const [reading, setReading] = useState(false); const [readErr, setReadErr] = useState(null);
+      useBack(editing, () => setEditing(false));
+      useBack(viewer !== null, () => setViewer(null));
+      useBack(adding, () => setAdding(false));
+      useBack(!!rescan, () => setRescan(null));
       const reread = async () => {
         if (!pages.length) return; setReading(true); setReadErr(null);
         try { const data = await extractPages(pages.map(p => p.blob), settings); setRescan(draftFromExtraction(data, settings, receipt)); }
@@ -1412,6 +1532,7 @@
             </div>
             <div className="kv" style={{ marginTop: 12 }}>
               <span className="k">GST</span><span>{receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'}</span>
+              {receipt.receiptNo && <><span className="k">Receipt no.</span><span style={{ fontFamily: 'monospace' }}>{receipt.receiptNo}</span></>}
               {receipt.comments && <><span className="k">Comments</span><span style={{ whiteSpace: 'pre-wrap' }}>{receipt.comments}</span></>}
               <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
             </div>
@@ -1426,7 +1547,8 @@
     }
     function AddPageFlow({ settings, setSettings, onDone, onCancel }) {
       const [canvas, setCanvas] = useState(null);
-      const onPick = async (f) => { try { setCanvas(await fileToCanvas(f, 3600)); } catch (_) { onCancel(); } };
+      useBack(!!canvas, () => setCanvas(null));
+      const onPick = async (f) => { try { setCanvas(await fileToCanvas(f, 3200)); } catch (_) { onCancel(); } };
       if (canvas) return <CropEditor canvas={canvas} enhanceDefault={settings.enhanceDefault} onDone={(blob) => onDone(blob)} onRetake={() => setCanvas(null)} />;
       return <InAppCamera pageNo="+" onCapture={setCanvas} onPick={onPick} onCancel={onCancel} settings={settings} setSettings={setSettings} />;
     }
@@ -1434,10 +1556,11 @@
     // ---------- List with filter and sort ----------
     const EMPTY_FILTER = { sort: 'date_desc', from: '', to: '', cats: [], tags: [], review: false };
     const filterCount = (f) => (f.from ? 1 : 0) + (f.to ? 1 : 0) + f.cats.length + f.tags.length + (f.review ? 1 : 0);
-    function ReceiptRow({ r, cats, onOpen }) {
+    function ReceiptRow({ r, cats, onOpen, selectable, selected }) {
       const col = catColour(r.category, cats);
       return (
-        <div className="card row" onClick={onOpen} style={{ cursor: 'pointer' }}>
+        <div className="card row" onClick={onOpen} style={{ cursor: 'pointer', borderColor: selected ? 'var(--navy)' : undefined, background: selected ? 'var(--navy-soft)' : undefined }}>
+          {selectable && <div style={{ width: 24, height: 24, borderRadius: 12, border: '2px solid ' + (selected ? 'var(--navy)' : 'var(--line)'), background: selected ? 'var(--navy)' : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{selected ? '✓' : ''}</div>}
           {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--muted)' }}>no image</div>}
           <div className="grow">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1455,8 +1578,7 @@
         </div>
       );
     }
-    function ReceiptList({ receipts, settings, onOpen, filter, setFilter }) {
-      const [q, setQ] = useState('');
+    function ReceiptList({ receipts, settings, onOpen, filter, setFilter, q, setQ, selecting, selected, onSelectAll }) {
       const [panel, setPanel] = useState(false);
       const f = { ...EMPTY_FILTER, ...filter };
       const shown = useMemo(() => {
@@ -1466,7 +1588,7 @@
         if (f.review) list = list.filter(r => r.needsReview);
         if (f.from) list = list.filter(r => (r.date || '') >= f.from);
         if (f.to) list = list.filter(r => (r.date || '') <= f.to);
-        if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
+        if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, r.receiptNo, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
         const byDate = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
         if (f.sort === 'date_asc') list.sort(byDate);
         else if (f.sort === 'amount_desc') list.sort((a, b) => (+b.total || 0) - (+a.total || 0));
@@ -1525,12 +1647,12 @@
               {f.review && <button className="chip btn on" onClick={() => setFilter({ ...f, review: false })}>Needs check x</button>}
             </div>
           )}
-          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'} · {sortLabel}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
+          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'} · {sortLabel}{selecting && <button className="chip btn" style={{ marginLeft: 8 }} onClick={() => onSelectAll(shown.map(r => r.id))}>Select all shown</button>}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
           {!shown.length && <div className="empty">{receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to add one.'}</div>}
           {groups.map(g => (
             <div key={g.key}>
               {g.label && <div className="section-h"><span>{g.label}</span><span className="amt">{fmtMoney(g.sum, settings.currency)}</span></div>}
-              {g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} />)}
+              {g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} selectable={selecting} selected={selecting && selected.has(r.id)} />)}
             </div>
           ))}
         </>
@@ -1633,7 +1755,8 @@
         let est = null; try { est = await navigator.storage.estimate(); } catch (_) {}
         let persisted = null; try { persisted = await navigator.storage.persisted(); if (!persisted) persisted = await navigator.storage.persist(); } catch (_) {}
         const imgs = await dbGetAll('images');
-        setDiag({ receipts: receipts.length, images: imgs.length, bytes: imgs.reduce((s, i) => s + (i.blob ? i.blob.size : 0), 0), quota: est, persisted, standalone: window.matchMedia('(display-mode: standalone)').matches, ua: navigator.userAgent });
+        let errors = []; try { errors = JSON.parse(localStorage.getItem(ERR_KEY) || '[]'); } catch (_) {}
+        setDiag({ receipts: receipts.length, images: imgs.length, bytes: imgs.reduce((s, i) => s + (i.blob ? i.blob.size : 0), 0), quota: est, persisted, standalone: window.matchMedia('(display-mode: standalone)').matches, ua: navigator.userAgent, errors, mem: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB heap' : '' });
       };
       const mb = (b) => (b / 1048576).toFixed(1) + ' MB';
       return (
@@ -1714,7 +1837,15 @@
               {`${diag.receipts} receipts, ${diag.images} images, ${mb(diag.bytes)}\n`}
               {diag.quota ? `Using ${mb(diag.quota.usage)} of ${mb(diag.quota.quota)} available\n` : ''}
               {`Persistent storage: ${diag.persisted === null ? 'unknown' : diag.persisted ? 'granted' : 'not granted (export regularly)'}\n`}
-              {`Installed as app: ${diag.standalone ? 'yes' : 'no'}`}
+              {`Installed as app: ${diag.standalone ? 'yes' : 'no'}${diag.mem ? '\n' + diag.mem : ''}`}
+              {diag.errors.length > 0 && <div style={{ marginTop: 8 }}>
+                <div style={{ fontWeight: 700 }}>Recent errors ({diag.errors.length})</div>
+                {diag.errors.slice(0, 5).map((e, i) => <div key={i} style={{ marginTop: 4, fontFamily: 'monospace', fontSize: 11 }}>{e.t.slice(0, 16).replace('T', ' ')} [{e.where}] {e.msg}{e.mem ? ' (' + e.mem + ')' : ''}</div>)}
+                <div className="row" style={{ marginTop: 6 }}>
+                  <button className="btn" onClick={() => { try { navigator.clipboard.writeText(JSON.stringify(diag.errors, null, 2)); } catch (_) {} }}>Copy errors</button>
+                  <button className="btn" onClick={() => { localStorage.removeItem(ERR_KEY); runDiag(); }}>Clear</button>
+                </div>
+              </div>}
             </div>}
           </div>
         </>
@@ -1736,11 +1867,53 @@
       useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {} }, []);
       const onSaved = (r, removedId) => { setReceipts(list => [...list.filter(x => x.id !== r.id && x.id !== removedId), r]); setCapturing(false); setOpen(r); };
       const [dupReview, setDupReview] = useState(false);
+      useBack(capturing, () => setCapturing(false));
+      useBack(!!open, () => setOpen(null));
+      useBack(showSettings, () => setShowSettings(false));
+      useBack(dupReview, () => setDupReview(false));
+      const [q, setQ] = useState('');
+      const [selecting, setSelecting] = useState(false);
+      const [selected, setSelected] = useState(() => new Set());
+      const [bulk, setBulk] = useState(null); // { done, total, errors, stop }
+      useBack(selecting && !bulk, () => { setSelecting(false); setSelected(new Set()); });
+      const toggleSel = (r) => setSelected(prev => { const n = new Set(prev); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; });
+      const selectAll = (ids) => setSelected(prev => { const n = new Set(prev); const all = ids.every(id => n.has(id)); ids.forEach(id => all ? n.delete(id) : n.add(id)); return n; });
+      // Re-read every selected receipt that has pages. Confident values replace the old ones; anything unsure is flagged for a check.
+      const bulkReread = async () => {
+        const targets = receipts.filter(r => selected.has(r.id) && (r.pages || []).length);
+        if (!targets.length) return;
+        if (!settings.apiKey) { alert('Add your API key in Settings first.'); return; }
+        const state = { done: 0, total: targets.length, errors: [], stop: false }; setBulk({ ...state });
+        for (const r of targets) {
+          if (state.stop) break;
+          try {
+            const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); }
+            const data = await extractPages(blobs, settings);
+            const d = draftFromExtraction(data, settings, r);
+            const full = { ...r, ...d, id: r.id, pages: r.pages, thumb: r.thumb, createdAt: r.createdAt, total: d.total === '' ? null : d.total, updatedAt: new Date().toISOString() };
+            await dbPut('receipts', full);
+            setReceipts(list => list.map(x => x.id === r.id ? full : x));
+          } catch (e) { state.errors.push((r.items || r.merchant || r.id) + ': ' + e.message); logError('bulk-reread', e); }
+          state.done++; setBulk({ ...state });
+        }
+        setBulk(b => ({ ...b, finished: true }));
+      };
+      const bulkDelete = async () => {
+        const targets = receipts.filter(r => selected.has(r.id));
+        for (const r of targets) await deleteReceiptFully(r);
+        setReceipts(list => list.filter(x => !selected.has(x.id))); setSelected(new Set()); setSelecting(false);
+      };
+      const [armDelete, setArmDelete] = useState(false);
+      useEffect(() => { if (!armDelete) return; const t = setTimeout(() => setArmDelete(false), 3000); return () => clearTimeout(t); }, [armDelete]);
+      const listScroll = useRef(0);
+      const openReceipt = (r) => { if (selecting) { toggleSel(r); return; } listScroll.current = window.scrollY; setOpen(r); };
+      const onList = !capturing && !open && !showSettings && !dupReview;
+      useEffect(() => { if (onList && loaded) { const y = listScroll.current; requestAnimationFrame(() => window.scrollTo(0, y)); } }, [onList, loaded]);
       const dupPairs = useMemo(() => findDuplicates(receipts, settings.notDuplicates), [receipts, settings.notDuplicates]);
       const onChanged = (r) => { setReceipts(list => list.map(x => x.id === r.id ? r : x)); setOpen(r); };
       const onDeleted = (id) => { setReceipts(list => list.filter(x => x.id !== id)); setOpen(null); };
       if (capturing) return <CaptureFlow settings={settings} setSettings={setSettings} onSaved={onSaved} onCancel={() => setCapturing(false)} receipts={receipts} />;
-      if (dupReview) return <DuplicateReview pairs={dupPairs} settings={settings} setSettings={setSettings} onResolved={() => reload()} onClose={() => setDupReview(false)} />;
+      if (dupReview) return <DuplicateReview pairs={dupPairs} settings={settings} setSettings={setSettings} onResolved={() => reload()} onClose={() => setDupReview(false)} onEdited={(full) => setReceipts(list => list.map(x => x.id === full.id ? full : x))} />;
       if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
       if (showSettings) return (
         <div className="sheet">
@@ -1750,15 +1923,33 @@
       );
       return (
         <div className="app">
-          <div className="topbar"><h1>Receipts</h1><div className="row"><span className="small muted">{receipts.length} total</span><button className="btn" style={{ padding: '8px 12px' }} onClick={() => setShowSettings(true)} aria-label="Settings">⚙️</button></div></div>
+          <div className="topbar"><h1>Receipts</h1><div className="row"><span className="small muted">{receipts.length} total</span>{!selecting && <button className="btn" style={{ padding: '8px 12px' }} onClick={() => setSelecting(true)}>Select</button>}<button className="btn" style={{ padding: '8px 12px' }} onClick={() => setShowSettings(true)} aria-label="Settings">⚙️</button></div></div>
+          {selecting && (
+            <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 32, background: 'var(--card)', borderTop: '1px solid var(--line)', padding: '10px 12px calc(10px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {bulk ? (
+                <>
+                  <div className="row" style={{ justifyContent: 'space-between' }}><span>{bulk.finished ? 'Done: ' : 'Reading '}{bulk.done} of {bulk.total}{bulk.errors.length ? `, ${bulk.errors.length} failed` : ''}</span>{!bulk.finished ? <button className="btn" onClick={() => { bulk.stop = true; }}>Stop</button> : <button className="btn primary" onClick={() => { setBulk(null); setSelecting(false); setSelected(new Set()); }}>Close</button>}</div>
+                  <div style={{ height: 6, background: 'var(--line)', borderRadius: 3 }}><div style={{ height: 6, width: `${bulk.total ? bulk.done / bulk.total * 100 : 0}%`, background: 'var(--navy)', borderRadius: 3, transition: 'width 0.3s' }} /></div>
+                  {bulk.errors.length > 0 && <div className="small muted" style={{ maxHeight: 60, overflow: 'auto' }}>{bulk.errors.join('\n')}</div>}
+                </>
+              ) : (
+                <div className="row">
+                  <button className="btn" onClick={() => { setSelecting(false); setSelected(new Set()); }}>Cancel</button>
+                  <span className="grow small muted">{selected.size} selected</span>
+                  <button className={'btn danger' + (armDelete ? ' armed' : '')} disabled={!selected.size} onClick={() => armDelete ? bulkDelete() : setArmDelete(true)}>{armDelete ? 'Confirm delete' : 'Delete'}</button>
+                  <button className="btn primary" disabled={!selected.size} onClick={bulkReread}>Read again ({receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length})</button>
+                </div>
+              )}
+            </div>
+          )}
           {loaded && dupPairs.length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{dupPairs.length} possible duplicate{dupPairs.length === 1 ? '' : 's'}</span><button className="chip btn" onClick={() => setDupReview(true)}>Review</button></div>}
-          {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={setOpen} filter={filter} setFilter={setFilter} />}
-          <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>
+          {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={openReceipt} filter={filter} setFilter={setFilter} q={q} setQ={setQ} selecting={selecting} selected={selected} onSelectAll={selectAll} />}
+          {!selecting && <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>}
         </div>
       );
     }
     window.__receipts = { makeZip, readZip, buildExportZip, importData, dbGetAll, detectReceipt }; // for testing from the console
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
   </script>
 </body>
 </html>
