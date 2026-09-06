@@ -83,6 +83,9 @@
     .crop-wrap img { display: block; width: 100%; height: auto; }
     .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
     .handle::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 5px; background: #fff; }
+    .handle { transform-origin: center; touch-action: none; }
+    .handle.edge { width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 8px; background: rgba(255,255,255,0.1); }
+    .handle.edge::after { width: 14px; height: 4px; margin: -2px 0 0 -7px; border-radius: 2px; }
     .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
     .seg button { flex: 1; border: none; background: var(--card); padding: 9px; font-size: 13px; }
     .seg button.on { background: var(--navy); color: #fff; }
@@ -97,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-05d-form-and-filters';
+    const BUILD_VERSION = '2026-09-05e-zoom-edges-reread';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -194,7 +197,7 @@
     // Returns { quad: [4 corners in full-res coords] | null, lines: [{rho, theta, score, kind}] in full-res coords }
     const detectReceipt = (canvas) => {
       const W = canvas.width, H = canvas.height;
-      const sc = Math.min(1, 420 / Math.max(W, H));
+      const sc = Math.min(1, 560 / Math.max(W, H));
       const w = Math.max(8, Math.round(W * sc)), h = Math.max(8, Math.round(H * sc));
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const ctx = c.getContext('2d'); ctx.drawImage(canvas, 0, 0, w, h);
@@ -257,33 +260,56 @@
         const pos = kind === 'h' ? (rho - cx * Math.cos(theta)) / Math.sin(theta) : (rho - cy * Math.sin(theta)) / Math.cos(theta);
         return { theta, rho: rho / sc, score: p.v, kind, pos: pos / sc };
       });
-      // pick outermost strong line per side
-      const pick = (kind, side) => {
+      // Candidate lines per side, then the best-scoring plausible quadrilateral from their combinations.
+      const cands = (kind, side) => {
         const lim = kind === 'h' ? H : W;
-        const cands = lines.filter(l => l.kind === kind && (side === 0 ? (l.pos < lim * 0.5 && l.pos > lim * 0.01) : (l.pos > lim * 0.5 && l.pos < lim * 0.99)));
-        if (!cands.length) return null;
-        const best = Math.max(...cands.map(l => l.score));
-        const strong = cands.filter(l => l.score >= best * 0.4);
-        strong.sort((a, b) => side === 0 ? a.pos - b.pos : b.pos - a.pos);
-        return strong[0];
+        return lines.filter(l => l.kind === kind && (side === 0 ? (l.pos < lim * 0.55 && l.pos > lim * 0.005) : (l.pos > lim * 0.45 && l.pos < lim * 0.995))).sort((a, b) => b.score - a.score).slice(0, 7);
       };
-      const top = pick('h', 0), bottom = pick('h', 1), left = pick('v', 0), right = pick('v', 1);
-      const inset = 0.03;
-      const fallback = { top: { theta: Math.PI / 2, rho: H * inset }, bottom: { theta: Math.PI / 2, rho: H * (1 - inset) }, left: { theta: 0, rho: W * inset }, right: { theta: 0, rho: W * (1 - inset) } };
-      const L = { top: top || fallback.top, bottom: bottom || fallback.bottom, left: left || fallback.left, right: right || fallback.right };
-      const inter = (a, b) => {
-        const det = Math.cos(a.theta) * Math.sin(b.theta) - Math.sin(a.theta) * Math.cos(b.theta);
-        if (Math.abs(det) < 1e-6) return null;
-        return { x: (a.rho * Math.sin(b.theta) - b.rho * Math.sin(a.theta)) / det, y: (b.rho * Math.cos(a.theta) - a.rho * Math.cos(b.theta)) / det };
-      };
-      let quad = [inter(L.top, L.left), inter(L.top, L.right), inter(L.bottom, L.right), inter(L.bottom, L.left)];
-      const okPt = (p) => p && p.x > -W * 0.1 && p.x < W * 1.1 && p.y > -H * 0.1 && p.y < H * 1.1;
-      const detected = !!(top || bottom || left || right);
-      if (!quad.every(okPt)) quad = null;
-      if (quad) quad = quad.map(p => ({ x: Math.min(W, Math.max(0, p.x)), y: Math.min(H, Math.max(0, p.y)) }));
+      const inset = 0.02;
+      const fb = { top: { theta: Math.PI / 2, rho: H * inset, score: 0, fb: true }, bottom: { theta: Math.PI / 2, rho: H * (1 - inset), score: 0, fb: true }, left: { theta: 0, rho: W * inset, score: 0, fb: true }, right: { theta: 0, rho: W * (1 - inset), score: 0, fb: true } };
+      const T = [...cands('h', 0), fb.top], B = [...cands('h', 1), fb.bottom], Lf = [...cands('v', 0), fb.left], R = [...cands('v', 1), fb.right];
+      const angDiff = (a, b) => { let d = Math.abs(a.theta - b.theta) % Math.PI; return Math.min(d, Math.PI - d); };
+      const polyArea = (q) => { let a = 0; for (let i = 0; i < 4; i++) { const p = q[i], n = q[(i + 1) % 4]; a += p.x * n.y - n.x * p.y; } return a / 2; };
+      const convex = (q) => { let sign = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4]; const cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x); if (Math.abs(cr) < 1e-6) continue; const sg = cr > 0 ? 1 : -1; if (sign && sg !== sign) return false; sign = sg; } return true; };
+      const okPt = (p) => p && p.x > -W * 0.05 && p.x < W * 1.05 && p.y > -H * 0.05 && p.y < H * 1.05;
+      const maxScore = Math.max(1, ...lines.map(l => l.score));
+      let best = null, bestVal = -1;
+      for (const t of T) for (const b of B) for (const l of Lf) for (const r of R) {
+        const q = [lineIntersect(t, l), lineIntersect(t, r), lineIntersect(b, r), lineIntersect(b, l)];
+        if (!q.every(okPt) || !convex(q)) continue;
+        const area = Math.abs(polyArea(q)) / (W * H); if (area < 0.1) continue;
+        const par = Math.max(angDiff(t, b), angDiff(l, r)); if (par > 25 * Math.PI / 180) continue;
+        const support = (t.score + b.score + l.score + r.score) / (4 * maxScore);
+        const val = support * (0.6 + 0.4 * Math.sqrt(area)) * (1 - par / (Math.PI / 2));
+        if (val > bestVal) { bestVal = val; best = { q, sides: [t, b, l, r] }; }
+      }
+      const detected = !!(best && best.sides.some(x => !x.fb));
+      let quad = best ? best.q.map(p => ({ x: Math.min(W, Math.max(0, p.x)), y: Math.min(H, Math.max(0, p.y)) })) : null;
       return { quad, lines, detected, W, H };
     };
 
+    const lineIntersect = (a, b) => {
+      const det = Math.cos(a.theta) * Math.sin(b.theta) - Math.sin(a.theta) * Math.cos(b.theta);
+      if (Math.abs(det) < 1e-9) return null;
+      return { x: (a.rho * Math.sin(b.theta) - b.rho * Math.sin(a.theta)) / det, y: (b.rho * Math.cos(a.theta) - a.rho * Math.cos(b.theta)) / det };
+    };
+    const lineThrough = (p, q) => { const theta = Math.atan2(q.x - p.x, -(q.y - p.y)); return { theta, rho: p.x * Math.cos(theta) + p.y * Math.sin(theta) }; };
+    // Snap a whole edge (corner a to corner b) to the strongest nearby line with a matching angle. Returns the line or null.
+    const snapEdgeLine = (a, b, lines, W, H) => {
+      const tol = Math.max(W, H) * 0.04;
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const edgeAng = Math.atan2(b.y - a.y, b.x - a.x);
+      let best = null, bestScore = 0;
+      for (const l of lines) {
+        const dist = Math.abs(mid.x * Math.cos(l.theta) + mid.y * Math.sin(l.theta) - l.rho);
+        if (dist > tol) continue;
+        let dAng = Math.abs(((edgeAng - (l.theta + Math.PI / 2)) % Math.PI + Math.PI) % Math.PI); dAng = Math.min(dAng, Math.PI - dAng);
+        if (dAng > 12 * Math.PI / 180) continue;
+        const sc = l.score * (1 - dist / tol * 0.5);
+        if (sc > bestScore) { bestScore = sc; best = l; }
+      }
+      return best;
+    };
     // Snap a point to the strongest nearby line whose direction matches the edge direction
     const snapPoint = (p, neighbour, lines, W, H) => {
       const tol = Math.max(W, H) * 0.035;
@@ -594,6 +620,71 @@
       downloadBlob(blob, name); return 'downloaded';
     };
 
+    // ---------- Extraction helpers shared by the capture flow and the re-read button ----------
+    const extractPages = async (blobs, settings) => {
+      const urls = [];
+      for (const b of blobs) { const c = await blobToCanvas(b, 1568); urls.push(c.toDataURL('image/jpeg', 0.85)); }
+      return extractReceipt(urls, settings.apiKey, settings.categories, settings.tags);
+    };
+    // Build a form draft from an extraction result. `base` is an existing receipt for a re-read, or null for a new one.
+    const draftFromExtraction = (data, settings, base) => {
+      const conf = (data && data.confidence) || {};
+      const unsure = [];
+      ['merchant', 'date', 'total', 'category'].forEach(f => { if (!data || conf[f] !== 'high' || data[f] === null) unsure.push(f); });
+      const cat = data && data.category && settings.categories.find(c => c.toLowerCase() === String(data.category).toLowerCase());
+      const tags = data && Array.isArray(data.suggested_tags) ? data.suggested_tags.map(t => settings.tags.map(x => x).find(x => x.toLowerCase() === String(t).toLowerCase())).filter(Boolean) : [];
+      const has = (v) => v !== null && v !== undefined && v !== '';
+      const b = base || {};
+      const note = data && data.warranty_note ? `Warranty: ${data.warranty_note}` : '';
+      const comments = b.comments ? (note && !b.comments.includes(note) ? b.comments + '\n' + note : b.comments) : note;
+      return {
+        id: b.id || uid(), createdAt: b.createdAt || new Date().toISOString(), pages: b.pages,
+        merchant: has(data && data.merchant) ? data.merchant : (b.merchant || ''),
+        date: has(data && data.date) ? data.date : (b.date || todayISO()),
+        total: has(data && data.total) ? data.total : (has(b.total) ? b.total : ''),
+        gstIncluded: data ? !!(data.gst > 0) : !!b.gstIncluded,
+        currency: (data && data.currency) || b.currency || settings.currency,
+        category: cat || b.category || '',
+        tags: Array.from(new Set([...(b.tags || []), ...tags])),
+        comments, items: has(data && data.items_summary) ? data.items_summary : (b.items || ''),
+        unsure, needsReview: unsure.length > 0
+      };
+    };
+    const extractErrMsg = (e) => e.kind === 'no_key' ? 'No API key set. Fill the details in by hand, or add a key in Settings.' : `Reading failed: ${e.message}. Fill in the details by hand.`;
+
+    // ---------- Pinch-zoom and pan container, used wherever an image is shown ----------
+    function ZoomPane({ children, style, onScale, maxScale = 6 }) {
+      const ref = useRef(null); const inner = useRef(null);
+      const st = useRef({ s: 1, tx: 0, ty: 0, pts: new Map(), start: null, lastTap: 0 });
+      const apply = () => { const t = st.current; if (inner.current) inner.current.style.transform = `translate(${t.tx}px, ${t.ty}px) scale(${t.s})`; if (onScale) onScale(t.s); };
+      const clamp = () => { const t = st.current; const el = ref.current; if (!el) return; const w = el.clientWidth, h = el.clientHeight; t.s = Math.min(maxScale, Math.max(1, t.s)); t.tx = Math.min(0, Math.max(w - w * t.s, t.tx)); t.ty = Math.min(0, Math.max(h - h * t.s, t.ty)); };
+      const zoomAt = (ns, cx, cy) => { const t = st.current; const ux = (cx - t.tx) / t.s, uy = (cy - t.ty) / t.s; t.s = ns; t.tx = cx - ux * ns; t.ty = cy - uy * ns; clamp(); apply(); };
+      const onDown = (e) => {
+        const t = st.current; t.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { ref.current.setPointerCapture(e.pointerId); } catch (_) {}
+        if (t.pts.size === 2) { const [a, b] = [...t.pts.values()]; t.start = { dist: Math.hypot(a.x - b.x, a.y - b.y), s: t.s }; }
+        else if (t.pts.size === 1) { t.start = { x: e.clientX, y: e.clientY, tx: t.tx, ty: t.ty }; const now = Date.now(); if (now - t.lastTap < 300) { const r = ref.current.getBoundingClientRect(); if (t.s > 1) { t.s = 1; t.tx = 0; t.ty = 0; apply(); } else zoomAt(2.5, e.clientX - r.left, e.clientY - r.top); } t.lastTap = now; }
+      };
+      const onMove = (e) => {
+        const t = st.current; if (!t.pts.has(e.pointerId)) return; t.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const r = ref.current.getBoundingClientRect();
+        if (t.pts.size === 2 && t.start && t.start.dist) {
+          const [a, b] = [...t.pts.values()]; const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          const ns = Math.min(maxScale, Math.max(1, t.start.s * dist / t.start.dist));
+          zoomAt(ns, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+          t.start.s = ns; t.start.dist = dist;
+        } else if (t.pts.size === 1 && t.start && t.start.x !== undefined && t.s > 1) {
+          t.tx = t.start.tx + (e.clientX - t.start.x); t.ty = t.start.ty + (e.clientY - t.start.y); clamp(); apply();
+        }
+      };
+      const onUp = (e) => { const t = st.current; t.pts.delete(e.pointerId); if (t.pts.size === 1) { const [a] = [...t.pts.values()]; t.start = { x: a.x, y: a.y, tx: t.tx, ty: t.ty }; } else if (!t.pts.size) t.start = null; };
+      useEffect(() => { const el = ref.current; if (!el) return; const onWheel = (e) => { e.preventDefault(); const r = el.getBoundingClientRect(); zoomAt(Math.min(maxScale, Math.max(1, st.current.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15))), e.clientX - r.left, e.clientY - r.top); }; el.addEventListener('wheel', onWheel, { passive: false }); return () => el.removeEventListener('wheel', onWheel); }, []);
+      return (
+        <div ref={ref} style={{ overflow: 'hidden', touchAction: 'none', position: 'relative', ...style }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+          <div ref={inner} style={{ transformOrigin: '0 0', width: '100%', height: '100%' }}>{children}</div>
+        </div>
+      );
+    }
+
     // ---------- In-app camera (getUserMedia; never the system camera intent) ----------
     const cameraErrMsg = (e) => {
       const n = e && e.name;
@@ -608,6 +699,9 @@
       const [ready, setReady] = useState(false); const [err, setErr] = useState(null); const [busy, setBusy] = useState(false);
       const [canTapFocus, setCanTapFocus] = useState(false); const [reticle, setReticle] = useState(null);
       const [torch, setTorch] = useState(null);
+      const [zoomCaps, setZoomCaps] = useState(null); const [zoom, setZoom] = useState(1);
+      const [res, setRes] = useState('');
+      const pinch = useRef({ pts: new Map(), startDist: 0, startZoom: 1, pending: null, moved: false });
       const stopStream = () => { if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; } };
       const tuneFocus = (stream) => {
         try {
@@ -615,11 +709,13 @@
           if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
           setCanTapFocus(!!(caps.focusMode || caps.pointsOfInterest));
           setTorch(caps.torch ? false : null);
+          if (caps.zoom && caps.zoom.max > caps.zoom.min) { setZoomCaps(caps.zoom); const cur = (track.getSettings().zoom) || caps.zoom.min || 1; setZoom(cur); } else setZoomCaps(null);
+          const st = track.getSettings(); if (st.width) setRes(`${st.width}x${st.height}`);
         } catch (_) {}
       };
       const open = async (deviceId) => {
         stopStream();
-        const base = { width: { ideal: 2560 }, height: { ideal: 1440 }, advanced: [{ focusMode: 'continuous' }] };
+        const base = { width: { ideal: 4096 }, height: { ideal: 3072 }, advanced: [{ focusMode: 'continuous' }] };
         const video = deviceId ? { ...base, deviceId: { exact: deviceId } } : { ...base, facingMode: { ideal: 'environment' } };
         const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
         streamRef.current = stream;
@@ -658,10 +754,22 @@
         if (torch === null || !streamRef.current) return;
         try { await streamRef.current.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: !torch }] }); setTorch(!torch); } catch (_) {}
       };
+      const applyZoom = (z) => {
+        if (!zoomCaps || !streamRef.current) return;
+        const clamped = Math.min(zoomCaps.max, Math.max(zoomCaps.min, z));
+        setZoom(clamped);
+        const p = pinch.current; p.pending = clamped;
+        if (p.raf) return;
+        p.raf = requestAnimationFrame(async () => { p.raf = null; const v = p.pending; try { await streamRef.current.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: v }] }); } catch (_) {} });
+      };
+      const onPD = (e) => { const p = pinch.current; p.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (p.pts.size === 2) { const [a, b] = [...p.pts.values()]; p.startDist = Math.hypot(a.x - b.x, a.y - b.y); p.startZoom = zoom; p.moved = true; } };
+      const onPM = (e) => { const p = pinch.current; if (!p.pts.has(e.pointerId)) return; p.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (p.pts.size === 2 && p.startDist) { const [a, b] = [...p.pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); applyZoom(p.startZoom * d / p.startDist); } };
+      const onPU = (e) => { const p = pinch.current; p.pts.delete(e.pointerId); if (p.pts.size < 2) p.startDist = 0; if (!p.pts.size) setTimeout(() => { p.moved = false; }, 50); };
       const tapFocus = async (e) => {
+        if (pinch.current.moved) return;
         if (!canTapFocus || !streamRef.current || !videoRef.current) return;
         const track = streamRef.current.getVideoTracks()[0]; const rect = videoRef.current.getBoundingClientRect();
-        const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
         setReticle({ x: cx, y: cy, ts: Date.now() }); setTimeout(() => setReticle(r => (r && Date.now() - r.ts >= 950) ? null : r), 1000);
         try {
           const caps = track.getCapabilities ? track.getCapabilities() : {}; const advanced = [];
@@ -670,14 +778,26 @@
           if (advanced.length) await track.applyConstraints({ advanced });
         } catch (_) {}
       };
+      // Full-resolution still via ImageCapture when the browser has it, else the video frame.
       const capture = async () => {
         if (!videoRef.current || !ready || busy) return;
         setBusy(true);
         try {
-          const v = videoRef.current; const w = v.videoWidth, h = v.videoHeight;
-          if (!w || !h) throw new Error('camera not ready yet');
-          const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+          const v = videoRef.current; const track = streamRef.current && streamRef.current.getVideoTracks()[0];
+          let canvas = null, how = 'frame';
+          if (track && window.ImageCapture) {
+            try {
+              const ic = new ImageCapture(track); let opts = {};
+              try { const pc = await ic.getPhotoCapabilities(); if (pc.imageWidth && pc.imageHeight) opts = { imageWidth: pc.imageWidth.max, imageHeight: pc.imageHeight.max }; } catch (_) {}
+              let blob = null; try { blob = await ic.takePhoto(opts); } catch (_) { try { blob = await ic.takePhoto(); } catch (__) {} }
+              if (blob && blob.size > 0) { canvas = await fileToCanvas(blob, 4000); how = 'photo'; }
+            } catch (_) {}
+          }
+          if (!canvas) {
+            const w = v.videoWidth, h = v.videoHeight; if (!w || !h) throw new Error('camera not ready yet');
+            canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+          }
+          canvas.captureHow = how;
           stopStream();
           onCapture(canvas);
         } catch (e) { setErr(cameraErrMsg(e)); setBusy(false); }
@@ -693,15 +813,17 @@
             </div>
           ) : (
             <>
-              <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onClick={tapFocus}>
+              <div style={{ flex: 1, position: 'relative', overflow: 'hidden', touchAction: 'none' }} onClick={tapFocus} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerCancel={onPU}>
                 <video ref={videoRef} playsInline muted autoPlay style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
                 {!ready && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>Starting camera...</div>}
                 {busy && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff' }}>Capturing...</div>}
                 {reticle && <div style={{ position: 'absolute', left: reticle.x - 30, top: reticle.y - 30, width: 60, height: 60, border: '2px solid #fff', borderRadius: 4, pointerEvents: 'none', animation: 'focusPulse 0.9s ease-out forwards' }} />}
-                <div style={{ position: 'absolute', top: 'calc(10px + var(--safe-t))', left: 0, right: 0, textAlign: 'center', color: '#fff', fontSize: 13, opacity: 0.85, pointerEvents: 'none' }}>Page {pageNo}</div>
-                {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 11, pointerEvents: 'none' }}>Fill the frame with the receipt on a plain background{canTapFocus ? ' · tap to focus' : ''}</div>}
+                <div style={{ position: 'absolute', top: 'calc(10px + var(--safe-t))', left: 12, right: 12, display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: 12, opacity: 0.85, pointerEvents: 'none' }}><span>Page {pageNo}</span><span>{res}</span></div>
+                {zoomCaps && <div style={{ position: 'absolute', right: 12, bottom: 34, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 14, padding: '4px 10px', fontSize: 12, pointerEvents: 'none' }}>{zoom.toFixed(1)}x</div>}
+                {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 11, pointerEvents: 'none' }}>{zoomCaps ? 'Pinch to zoom' : 'Zoom not supported on this lens'}{canTapFocus ? ' · tap to focus' : ''}</div>}
               </div>
-              <div style={{ padding: '16px 20px calc(24px + var(--safe-b))', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {zoomCaps && <div style={{ background: '#000', padding: '4px 20px 0' }}><input type="range" min={zoomCaps.min} max={zoomCaps.max} step={zoomCaps.step || 0.1} value={zoom} onChange={e => applyZoom(+e.target.value)} style={{ width: '100%' }} /></div>}
+              <div style={{ padding: '12px 20px calc(24px + var(--safe-b))', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 74 }}>
                   <button onClick={() => { stopStream(); onCancel(); }} style={{ background: 'transparent', color: '#fff', border: 'none', fontSize: 15, padding: '8px 0', textAlign: 'left' }}>Cancel</button>
                   <label style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>Gallery<input type="file" accept="image/*" hidden onChange={e => { if (e.target.files[0]) { stopStream(); onPick(e.target.files[0]); } }} /></label>
@@ -718,71 +840,73 @@
       );
     }
 
-    // ---------- Crop editor with draggable corners and snap-to-edge ----------
+    // ---------- Crop editor: pinch-zoom, draggable corners and edges, snap to detected lines ----------
     function CropEditor({ canvas, onDone, onRetake, enhanceDefault }) {
       const [det, setDet] = useState(null);
       const [quad, setQuad] = useState(null);
       const [preview, setPreview] = useState(null);
-      const [size, setSize] = useState({ w: 1, h: 1 });
       const [busy, setBusy] = useState(false);
       const [enhance, setEnhance] = useState(enhanceDefault);
-      const [result, setResult] = useState(null); // {colour: canvas, enhanced: canvas}
-      const wrapRef = useRef(null); const dragRef = useRef(null);
+      const [result, setResult] = useState(null);
+      const [zoom, setZoom] = useState(1);
+      const imgRef = useRef(null); const dragRef = useRef(null);
       useEffect(() => {
         const d = detectReceipt(canvas);
         const q = d.quad || [{ x: canvas.width * 0.05, y: canvas.height * 0.05 }, { x: canvas.width * 0.95, y: canvas.height * 0.05 }, { x: canvas.width * 0.95, y: canvas.height * 0.95 }, { x: canvas.width * 0.05, y: canvas.height * 0.95 }];
-        setDet(d); setQuad(q); setPreview(scaleCanvas(canvas, 1200, 0.8));
+        setDet(d); setQuad(q); setPreview(scaleCanvas(canvas, 1600, 0.82));
       }, [canvas]);
-      useEffect(() => {
-        const el = wrapRef.current; if (!el) return;
-        const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight })); ro.observe(el); return () => ro.disconnect();
-      }, [preview]);
-      const sx = size.w / canvas.width, sy = size.h / canvas.height;
-      const onDown = (i) => (e) => { e.preventDefault(); dragRef.current = { i, id: e.pointerId }; e.currentTarget.setPointerCapture(e.pointerId); };
+      // image coords from a pointer event, via the on-screen rect of the image (works at any zoom)
+      const toImg = (e) => { const r = imgRef.current.getBoundingClientRect(); return { x: Math.min(canvas.width, Math.max(0, (e.clientX - r.left) / r.width * canvas.width)), y: Math.min(canvas.height, Math.max(0, (e.clientY - r.top) / r.height * canvas.height)) }; };
+      const startDrag = (kind, i) => (e) => { e.stopPropagation(); e.preventDefault(); const p = toImg(e); dragRef.current = { kind, i, id: e.pointerId, start: p, q0: quad.map(x => ({ ...x })) }; e.currentTarget.setPointerCapture(e.pointerId); };
       const onMove = (e) => {
-        if (!dragRef.current || dragRef.current.id !== e.pointerId) return;
-        const r = wrapRef.current.getBoundingClientRect();
-        const x = Math.min(canvas.width, Math.max(0, (e.clientX - r.left) / sx)), y = Math.min(canvas.height, Math.max(0, (e.clientY - r.top) / sy));
-        setQuad(q => q.map((p, k) => k === dragRef.current.i ? { x, y } : p));
+        const d = dragRef.current; if (!d || d.id !== e.pointerId) return;
+        const p = toImg(e);
+        if (d.kind === 'corner') setQuad(q => q.map((pt, k) => k === d.i ? p : pt));
+        else { const dx = p.x - d.start.x, dy = p.y - d.start.y; const a = d.i, b = (d.i + 1) % 4; setQuad(q => q.map((pt, k) => (k === a || k === b) ? { x: Math.min(canvas.width, Math.max(0, d.q0[k].x + dx)), y: Math.min(canvas.height, Math.max(0, d.q0[k].y + dy)) } : pt)); }
       };
       const onUp = (e) => {
-        if (!dragRef.current || dragRef.current.id !== e.pointerId) return;
-        const i = dragRef.current.i; dragRef.current = null;
+        const d = dragRef.current; if (!d || d.id !== e.pointerId) return; dragRef.current = null;
+        if (!det || !det.lines.length) return;
         setQuad(q => {
-          if (!det || !det.lines.length) return q;
-          const prev = q[(i + 3) % 4], next = q[(i + 1) % 4];
-          let p = snapPoint(q[i], next, det.lines, canvas.width, canvas.height);
-          p = snapPoint(p, prev, det.lines, canvas.width, canvas.height);
-          return q.map((pt, k) => k === i ? p : pt);
+          if (d.kind === 'corner') {
+            const i = d.i; const prev = q[(i + 3) % 4], next = q[(i + 1) % 4];
+            let p = snapPoint(q[i], next, det.lines, canvas.width, canvas.height); p = snapPoint(p, prev, det.lines, canvas.width, canvas.height);
+            return q.map((pt, k) => k === i ? p : pt);
+          }
+          const a = d.i, b = (a + 1) % 4; const line = snapEdgeLine(q[a], q[b], det.lines, canvas.width, canvas.height); if (!line) return q;
+          const prevLine = lineThrough(q[(a + 3) % 4], q[a]), nextLine = lineThrough(q[b], q[(b + 1) % 4]);
+          const na = lineIntersect(line, prevLine), nb = lineIntersect(line, nextLine); if (!na || !nb) return q;
+          const cl = (p) => ({ x: Math.min(canvas.width, Math.max(0, p.x)), y: Math.min(canvas.height, Math.max(0, p.y)) });
+          return q.map((pt, k) => k === a ? cl(na) : k === b ? cl(nb) : pt);
         });
       };
       const reset = () => setQuad([{ x: 0, y: 0 }, { x: canvas.width, y: 0 }, { x: canvas.width, y: canvas.height }, { x: 0, y: canvas.height }]);
+      const redetect = () => { if (det && det.quad) setQuad(det.quad); };
       const apply = () => {
         setBusy(true);
         setTimeout(() => {
           try {
-            const colour = warpQuad(canvas, quad, 1800);
+            const colour = warpQuad(canvas, quad, 2800);
             const enhanced = enhanceCanvas(colour);
-            setResult({ colour, enhanced, colourUrl: scaleCanvas(colour, 1000, 0.8), enhancedUrl: scaleCanvas(enhanced, 1000, 0.8) });
+            setResult({ colour, enhanced, colourUrl: scaleCanvas(colour, 1600, 0.82), enhancedUrl: scaleCanvas(enhanced, 1600, 0.82) });
           } finally { setBusy(false); }
         }, 30);
       };
-      const finish = async () => {
-        setBusy(true);
-        const c = enhance ? result.enhanced : result.colour;
-        const blob = await canvasToBlob(c, 0.86);
-        onDone(blob, enhance);
-      };
+      const finish = async () => { setBusy(true); const c = enhance ? result.enhanced : result.colour; const blob = await canvasToBlob(c, 0.88); onDone(blob, enhance); };
       if (!preview) return <div className="sheet" style={{ background: '#000' }} />;
+      const dims = `${canvas.width}x${canvas.height}${canvas.captureHow === 'photo' ? ' still' : ''}`;
       if (result) return (
         <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, overflow: 'hidden' }}>
-            <img src={enhance ? result.enhancedUrl : result.colourUrl} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
-          </div>
+          <div style={{ padding: 'calc(8px + var(--safe-t)) 16px 4px', fontSize: 12, opacity: 0.7, textAlign: 'center' }}>{(enhance ? result.enhanced : result.colour).width}x{(enhance ? result.enhanced : result.colour).height} · pinch to zoom</div>
+          <ZoomPane style={{ flex: 1 }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+              <img src={enhance ? result.enhancedUrl : result.colourUrl} draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
+            </div>
+          </ZoomPane>
           <div style={{ padding: '10px 16px calc(20px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div className="seg" style={{ borderColor: '#444' }}>
-              <button className={enhance ? 'on' : ''} style={{ background: enhance ? '#fff' : '#222', color: enhance ? '#000' : '#fff' }} onClick={() => setEnhance(true)}>Enhanced</button>
-              <button className={!enhance ? 'on' : ''} style={{ background: !enhance ? '#fff' : '#222', color: !enhance ? '#000' : '#fff' }} onClick={() => setEnhance(false)}>Colour</button>
+              <button style={{ background: enhance ? '#fff' : '#222', color: enhance ? '#000' : '#fff' }} onClick={() => setEnhance(true)}>Enhanced</button>
+              <button style={{ background: !enhance ? '#fff' : '#222', color: !enhance ? '#000' : '#fff' }} onClick={() => setEnhance(false)}>Colour</button>
             </div>
             <div className="row">
               <button className="btn" style={{ background: '#222', color: '#fff', borderColor: '#444' }} onClick={() => setResult(null)}>Adjust crop</button>
@@ -791,23 +915,30 @@
           </div>
         </div>
       );
-      const pts = quad ? quad.map(p => `${p.x * sx},${p.y * sy}`).join(' ') : '';
+      const hs = 1 / zoom;
+      const mids = quad ? quad.map((p, i) => { const n = quad[(i + 1) % 4]; return { x: (p.x + n.x) / 2, y: (p.y + n.y) / 2 }; }) : [];
       return (
         <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <button onClick={onRetake} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Retake</button>
-            <div style={{ fontSize: 13, opacity: 0.8 }}>{det && det.detected ? 'Edges found. Drag corners to adjust.' : 'Drag the corners to the receipt edges.'}</div>
-            <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Full</button>
-          </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '22px 22px', overflow: 'hidden' }}>
-            <div ref={wrapRef} className="crop-wrap" style={{ maxHeight: '100%', maxWidth: '100%', aspectRatio: `${canvas.width} / ${canvas.height}`, width: canvas.width >= canvas.height ? '100%' : 'auto', height: canvas.width >= canvas.height ? 'auto' : '100%' }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-              <img src={preview} draggable={false} style={{ width: '100%', height: '100%', display: 'block' }} />
-              {quad && <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="none">
-                <polygon points={pts} fill="rgba(31,58,95,0.18)" stroke="#fff" strokeWidth="2" />
-              </svg>}
-              {quad && quad.map((p, i) => <div key={i} className="handle" style={{ left: p.x * sx, top: p.y * sy }} onPointerDown={onDown(i)} />)}
+            <div style={{ fontSize: 12, opacity: 0.8, textAlign: 'center' }}>{det && det.detected ? 'Edges found. Drag corners or edges.' : 'Drag the corners or edges to the paper.'}<br /><span style={{ opacity: 0.7 }}>{dims} · pinch to zoom</span></div>
+            <div className="row" style={{ gap: 4 }}>
+              {det && det.quad && <button onClick={redetect} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Auto</button>}
+              <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Full</button>
             </div>
           </div>
+          <ZoomPane style={{ flex: 1 }} onScale={setZoom}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+              <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: `${canvas.width} / ${canvas.height}`, width: canvas.width >= canvas.height ? '100%' : 'auto', height: canvas.width >= canvas.height ? 'auto' : '100%' }}>
+                <img ref={imgRef} src={preview} draggable={false} style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }} />
+                {quad && <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox={`0 0 ${canvas.width} ${canvas.height}`} preserveAspectRatio="none">
+                  <polygon points={quad.map(p => `${p.x},${p.y}`).join(' ')} fill="rgba(31,58,95,0.18)" stroke="#fff" strokeWidth={Math.max(2, canvas.width / 500) / zoom} vectorEffect="non-scaling-stroke" />
+                </svg>}
+                {quad && mids.map((m, i) => <div key={'e' + i} className="handle edge" style={{ left: `${m.x / canvas.width * 100}%`, top: `${m.y / canvas.height * 100}%`, transform: `scale(${hs})` }} onPointerDown={startDrag('edge', i)} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />)}
+                {quad && quad.map((p, i) => <div key={'c' + i} className="handle" style={{ left: `${p.x / canvas.width * 100}%`, top: `${p.y / canvas.height * 100}%`, transform: `scale(${hs})` }} onPointerDown={startDrag('corner', i)} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />)}
+              </div>
+            </div>
+          </ZoomPane>
           <div style={{ padding: '10px 16px calc(20px + var(--safe-b))' }}>
             <button className="btn primary wide" onClick={apply} disabled={busy}>{busy ? 'Straightening...' : 'Crop and clean up'}</button>
           </div>
@@ -825,7 +956,7 @@
       const [err, setErr] = useState(null);
       const [draft, setDraft] = useState(null);
       const onCapture = (canvas) => { setRawCanvas(canvas); setStage('crop'); };
-      const onPick = async (file) => { try { const c = await fileToCanvas(file, 2400); setRawCanvas(c); setStage('crop'); } catch (e) { setErr('Could not read that image.'); setStage('pages'); } };
+      const onPick = async (file) => { try { const c = await fileToCanvas(file, 3600); setRawCanvas(c); setStage('crop'); } catch (e) { setErr('Could not read that image.'); setStage('pages'); } };
       const onCropDone = async (blob) => {
         const id = uid(); const url = URL.createObjectURL(blob);
         setPages(p => [...p, { id, blob, url }]); setRawCanvas(null); setStage('pages');
@@ -834,22 +965,8 @@
       const runExtract = async () => {
         setStage('extracting'); setErr(null);
         let data = null;
-        try {
-          const urls = [];
-          for (const p of pages) { const c = await blobToCanvas(p.blob, 1400); urls.push(c.toDataURL('image/jpeg', 0.8)); }
-          data = await extractReceipt(urls, settings.apiKey, settings.categories, settings.tags);
-        } catch (e) { setErr(e.kind === 'no_key' ? 'No API key set. Fill the details in by hand, or add a key in Settings.' : `Extraction failed: ${e.message}. Fill in the details by hand.`); }
-        const conf = (data && data.confidence) || {};
-        const unsure = [];
-        ['merchant', 'date', 'total', 'category'].forEach(f => { if (!data || conf[f] !== 'high' || data[f] === null) unsure.push(f); });
-        const cat = data && data.category && settings.categories.find(c => c.toLowerCase() === String(data.category).toLowerCase());
-        const tags = data && Array.isArray(data.suggested_tags) ? data.suggested_tags.map(t => settings.tags.find(x => x.toLowerCase() === String(t).toLowerCase())).filter(Boolean) : [];
-        setDraft({
-          id: uid(), merchant: (data && data.merchant) || '', date: (data && data.date) || todayISO(), total: data && data.total !== null && data.total !== undefined ? data.total : '',
-          gstIncluded: !!(data && data.gst > 0), currency: (data && data.currency) || settings.currency, category: cat || '',
-          tags, comments: data && data.warranty_note ? `Warranty: ${data.warranty_note}` : '', items: (data && data.items_summary) || '',
-          unsure, needsReview: unsure.length > 0, createdAt: new Date().toISOString()
-        });
+        try { data = await extractPages(pages.map(p => p.blob), settings); } catch (e) { setErr(extractErrMsg(e)); }
+        setDraft(draftFromExtraction(data, settings, null));
         setStage('review');
       };
       const save = async (rec) => {
@@ -1008,9 +1125,11 @@
             <span>{i + 1} / {urls.length}</span>
             <a href={urls[i]} download={`receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 13 }}>Save</a>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', touchAction: 'pinch-zoom pan-x pan-y' }}>
-            <img src={urls[i]} style={{ maxWidth: '100%', height: 'auto' }} />
-          </div>
+          <ZoomPane key={i} style={{ flex: 1 }} maxScale={8}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img src={urls[i]} draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            </div>
+          </ZoomPane>
           {urls.length > 1 && <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '10px 0 calc(16px + var(--safe-b))' }}>
             <button className="btn" onClick={() => setI((i + urls.length - 1) % urls.length)}>Prev</button>
             <button className="btn" onClick={() => setI((i + 1) % urls.length)}>Next</button>
@@ -1025,6 +1144,13 @@
       const [editing, setEditing] = useState(false);
       const [viewer, setViewer] = useState(null);
       const [adding, setAdding] = useState(false);
+      const [rescan, setRescan] = useState(null); const [reading, setReading] = useState(false); const [readErr, setReadErr] = useState(null);
+      const reread = async () => {
+        if (!pages.length) return; setReading(true); setReadErr(null);
+        try { const data = await extractPages(pages.map(p => p.blob), settings); setRescan(draftFromExtraction(data, settings, receipt)); }
+        catch (e) { setReadErr(extractErrMsg(e)); }
+        setReading(false);
+      };
       useEffect(() => {
         let urls = [];
         (async () => { const out = []; for (const id of receipt.pages || []) { const b = await dbGetImageBlob(id); if (b) { const url = URL.createObjectURL(b); urls.push(url); out.push({ id, blob: b, url }); } } setPages(out); })();
@@ -1036,6 +1162,7 @@
       const removePage = async (id) => { await dbDel('images', id); const rest = (receipt.pages || []).filter(p => p !== id); const full = { ...receipt, pages: rest, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); };
       const addPageDone = async (blob) => { const id = uid(); await dbPut('images', { id, blob }); const full = { ...receipt, pages: [...(receipt.pages || []), id], updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setAdding(false); };
       if (adding) return <AddPageFlow settings={settings} setSettings={setSettings} onDone={addPageDone} onCancel={() => setAdding(false)} />;
+      if (rescan) return <ReceiptForm draft={{ ...rescan, total: rescan.total ?? '' }} pages={pages} settings={settings} setSettings={setSettings} onSave={async (rec) => { await save(rec); setRescan(null); }} onCancel={() => setRescan(null)} title="Check the re-read" />;
       if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gstIncluded: !!receipt.gstIncluded, tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
       const col = catColour(receipt.category, settings.categories);
       return (
@@ -1061,7 +1188,8 @@
               <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
             </div>
           </div>
-          <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div>
+          {readErr && <div className="banner err" onClick={() => setReadErr(null)}>{readErr}</div>}
+          <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><div className="row" style={{ gap: 6 }}>{pages.length > 0 && <button className="chip btn" disabled={reading} onClick={reread}>{reading ? 'Reading...' : 'Read again with Claude'}</button>}<button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div></div>
           <div style={{ padding: '0 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {pages.map((p, i) => <img key={p.id} src={p.url} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
           </div>
@@ -1070,7 +1198,7 @@
     }
     function AddPageFlow({ settings, setSettings, onDone, onCancel }) {
       const [canvas, setCanvas] = useState(null);
-      const onPick = async (f) => { try { setCanvas(await fileToCanvas(f, 2400)); } catch (_) { onCancel(); } };
+      const onPick = async (f) => { try { setCanvas(await fileToCanvas(f, 3600)); } catch (_) { onCancel(); } };
       if (canvas) return <CropEditor canvas={canvas} enhanceDefault={settings.enhanceDefault} onDone={(blob) => onDone(blob)} onRetake={() => setCanvas(null)} />;
       return <InAppCamera pageNo="+" onCapture={setCanvas} onPick={onPick} onCancel={onCancel} settings={settings} setSettings={setSettings} />;
     }
