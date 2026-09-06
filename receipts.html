@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06j-merge-direction';
+    const BUILD_VERSION = '2026-09-06k-dup-viewer';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1115,12 +1115,12 @@
       return merged;
     };
     const deleteReceiptFully = async (r) => { for (const id of r.pages || []) await dbDel('images', id); await dbDel('receipts', r.id); };
-    function DupCard({ r, cats, label }) {
+    function DupCard({ r, cats, label, onView }) {
       const col = catColour(r.category, cats);
       return (
         <div className="card grow" style={{ margin: 0, padding: 10 }}>
           <div className="small muted" style={{ marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-          {r.thumb ? <img src={r.thumb} style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 8, background: '#eee' }} /> : <div className="muted small" style={{ height: 40 }}>no image</div>}
+          {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: '#eee' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
           <div style={{ fontWeight: 600, marginTop: 6 }}>{r.items || r.merchant || 'Receipt'}</div>
           <div className="small muted">{r.items ? r.merchant : ''}</div>
           <div className="small">{fmtDate(r.date) || 'No date'} · <span className="amt">{fmtMoney(r.total, r.currency) || 'No total'}</span></div>
@@ -1132,6 +1132,13 @@
     // Reviews a list of pairs one at a time. onResolved(kind, survivor) is called after each action; onClose when done.
     function DuplicateReview({ pairs, settings, setSettings, onResolved, onClose, newId }) {
       const [i, setI] = useState(0); const [busy, setBusy] = useState(false);
+      const [viewer, setViewer] = useState(null); // { urls, names }
+      useEffect(() => () => { if (viewer) viewer.urls.forEach(u => URL.revokeObjectURL(u)); }, [viewer]);
+      const view = async (r) => {
+        const urls = [], names = [];
+        for (const [k, pid] of (r.pages || []).entries()) { const b = await dbGetImageBlob(pid); if (b) { urls.push(URL.createObjectURL(b)); names.push(pageFileName(r, k, pid)); } }
+        if (urls.length) setViewer({ urls, names });
+      };
       const pair = pairs[i];
       const next = () => { if (i + 1 < pairs.length) setI(i + 1); else onClose(); };
       const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); } setBusy(false); next(); };
@@ -1141,9 +1148,10 @@
       const leftLabel = newId ? 'Existing' : 'A', rightLabel = newId ? 'Just added' : 'B';
       return (
         <div className="sheet" style={{ zIndex: 45 }}>
+          {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
           <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{pairs.length > 1 ? ` ${i + 1} of ${pairs.length}` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
-          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} /><DupCard r={right} cats={settings.categories} label={rightLabel} /></div>
+          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} /></div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">

@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06j-merge-direction';
+const BUILD_VERSION = '2026-09-06k-dup-viewer';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -2971,7 +2971,8 @@ const deleteReceiptFully = async r => {
 function DupCard({
   r,
   cats,
-  label
+  label,
+  onView
 }) {
   const col = catColour(r.category, cats);
   return React.createElement("div", {
@@ -2988,16 +2989,26 @@ function DupCard({
       textTransform: 'uppercase',
       letterSpacing: '0.04em'
     }
-  }, label), r.thumb ? React.createElement("img", {
+  }, label), r.thumb ? React.createElement("div", {
+    onClick: onView,
+    style: {
+      cursor: 'pointer'
+    }
+  }, React.createElement("img", {
     src: r.thumb,
     style: {
       width: '100%',
-      maxHeight: 120,
+      maxHeight: 160,
       objectFit: 'contain',
       borderRadius: 8,
       background: '#eee'
     }
-  }) : React.createElement("div", {
+  }), React.createElement("div", {
+    className: "small muted",
+    style: {
+      textAlign: 'center'
+    }
+  }, "Tap to view", (r.pages || []).length > 1 ? ` ${r.pages.length} pages` : '')) : React.createElement("div", {
     className: "muted small",
     style: {
       height: 40
@@ -3051,6 +3062,25 @@ function DuplicateReview({
 }) {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [viewer, setViewer] = useState(null);
+  useEffect(() => () => {
+    if (viewer) viewer.urls.forEach(u => URL.revokeObjectURL(u));
+  }, [viewer]);
+  const view = async r => {
+    const urls = [],
+      names = [];
+    for (const [k, pid] of (r.pages || []).entries()) {
+      const b = await dbGetImageBlob(pid);
+      if (b) {
+        urls.push(URL.createObjectURL(b));
+        names.push(pageFileName(r, k, pid));
+      }
+    }
+    if (urls.length) setViewer({
+      urls,
+      names
+    });
+  };
   const pair = pairs[i];
   const next = () => {
     if (i + 1 < pairs.length) setI(i + 1);else onClose();
@@ -3075,7 +3105,12 @@ function DuplicateReview({
     style: {
       zIndex: 45
     }
-  }, React.createElement("div", {
+  }, viewer && React.createElement(ImageViewer, {
+    urls: viewer.urls,
+    names: viewer.names,
+    start: 0,
+    onClose: () => setViewer(null)
+  }), React.createElement("div", {
     className: "topbar"
   }, React.createElement("button", {
     className: "btn",
@@ -3100,11 +3135,13 @@ function DuplicateReview({
   }, React.createElement(DupCard, {
     r: left,
     cats: settings.categories,
-    label: leftLabel
+    label: leftLabel,
+    onView: () => view(left)
   }), React.createElement(DupCard, {
     r: right,
     cats: settings.categories,
-    label: rightLabel
+    label: rightLabel,
+    onView: () => view(right)
   })), React.createElement("div", {
     style: {
       padding: '0 12px',
