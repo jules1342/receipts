@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06f-duplicates';
+    const BUILD_VERSION = '2026-09-06g-import-compress';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -695,6 +695,16 @@
       }
       return makeZip(entries);
     };
+    const PAGE_MAX_PX = 2800, PAGE_JPEG_Q = 0.88;
+    const normalisePageBlob = async (blob) => {
+      try {
+        if (!blob || blob.size < 400 * 1024) return blob;
+        const c = await blobToCanvas(blob, PAGE_MAX_PX);
+        const out = await canvasToBlob(c, PAGE_JPEG_Q);
+        c.width = 0; c.height = 0;
+        return out && out.size < blob.size * 0.85 ? out : blob;
+      } catch (_) { return blob; }
+    };
     const makeThumb = async (blob) => { const c = await blobToCanvas(blob, 220); return c.toDataURL('image/jpeg', 0.7); };
     const importData = async (file, existing) => {
       let manifest = null, images = [];
@@ -710,7 +720,7 @@
       let added = 0, updated = 0;
       for (const im of images) {
         const id = idFromFileName(im.name);
-        await dbPut('images', { id, blob: new Blob([im.data], { type: 'image/jpeg' }) });
+        await dbPut('images', { id, blob: await normalisePageBlob(new Blob([im.data], { type: 'image/jpeg' })) });
       }
       for (const r of list) {
         const cur = existing.find(x => x.id === r.id);
@@ -1588,7 +1598,7 @@
           const byId = {}; files.forEach(f => { const id = idFromFileName(f.name); if (id) byId[id] = f; });
           let added = 0, imgs = 0;
           for (const r of manifest.receipts || []) {
-            for (const pid of r.pages || []) { if (await dbGet('images', pid)) continue; const f = byId[pid]; if (!f) continue; await dbPut('images', { id: pid, blob: await driveDownload(token, f.id) }); imgs++; }
+            for (const pid of r.pages || []) { if (await dbGet('images', pid)) continue; const f = byId[pid]; if (!f) continue; await dbPut('images', { id: pid, blob: await normalisePageBlob(await driveDownload(token, f.id)) }); imgs++; }
             const cur = receipts.find(x => x.id === r.id);
             if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
             let thumb = null; if (r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }

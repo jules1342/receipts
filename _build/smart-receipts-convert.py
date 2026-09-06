@@ -253,8 +253,21 @@ def main(zip_path, out_dir):
     out_zip = os.path.join(out_dir, 'smart-receipts-import.zip')
     with zipfile.ZipFile(out_zip, 'w', zipfile.ZIP_STORED) as oz:
         oz.writestr('receipts.json', json.dumps({'app': 'Receipts', 'exportedAt': datetime.utcnow().isoformat() + 'Z', 'categories': CATEGORIES, 'tags': TAGS, 'notDuplicates': [], 'receipts': receipts}, indent=1))
+        saved = 0
         for im, r, pid in out_images:
-            oz.writestr('images/' + page_file_name(r, 0, pid), z.read(im['file']))
+            data = z.read(im['file'])
+            # Same limits the app uses for its own captures: long side 2800 px, JPEG quality 88. Only replace the
+            # original when that is clearly smaller; a receipt is never upscaled and never quality-reduced twice.
+            if Image is not None:
+                try:
+                    imx = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert('RGB')
+                    if max(imx.size) > 2800: imx.thumbnail((2800, 2800), Image.LANCZOS)
+                    buf = io.BytesIO(); imx.save(buf, 'JPEG', quality=88, optimize=True, subsampling=0)
+                    if buf.tell() < len(data) * 0.85: saved += len(data) - buf.tell(); data = buf.getvalue()
+                except Exception as e:
+                    print('  keep original', im['file'], e)
+            oz.writestr('images/' + page_file_name(r, 0, pid), data)
+        print('images compressed, saved %.1f MB' % (saved / 1048576))
     hows = collections.Counter(h for _, _, h in pairs)
     rep = ['# Smart Receipts conversion', '', 'Rows in table: %d. Images: %d.' % (len(rows), len(images)),
            'Matched by unique name: %d. By invoice date/total: %d. By order only (check these): %d.' % (hows['name'], hows['read'], hows['order']),

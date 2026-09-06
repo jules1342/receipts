@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06f-duplicates';
+const BUILD_VERSION = '2026-09-06g-import-compress';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1660,6 +1660,20 @@ const buildExportZip = async (receipts, settings) => {
   }
   return makeZip(entries);
 };
+const PAGE_MAX_PX = 2800,
+  PAGE_JPEG_Q = 0.88;
+const normalisePageBlob = async blob => {
+  try {
+    if (!blob || blob.size < 400 * 1024) return blob;
+    const c = await blobToCanvas(blob, PAGE_MAX_PX);
+    const out = await canvasToBlob(c, PAGE_JPEG_Q);
+    c.width = 0;
+    c.height = 0;
+    return out && out.size < blob.size * 0.85 ? out : blob;
+  } catch (_) {
+    return blob;
+  }
+};
 const makeThumb = async blob => {
   const c = await blobToCanvas(blob, 220);
   return c.toDataURL('image/jpeg', 0.7);
@@ -1684,9 +1698,9 @@ const importData = async (file, existing) => {
     const id = idFromFileName(im.name);
     await dbPut('images', {
       id,
-      blob: new Blob([im.data], {
+      blob: await normalisePageBlob(new Blob([im.data], {
         type: 'image/jpeg'
-      })
+      }))
     });
   }
   for (const r of list) {
@@ -4667,7 +4681,7 @@ function Settings({
           if (!f) continue;
           await dbPut('images', {
             id: pid,
-            blob: await driveDownload(token, f.id)
+            blob: await normalisePageBlob(await driveDownload(token, f.id))
           });
           imgs++;
         }
