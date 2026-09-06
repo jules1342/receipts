@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06p-dup-edit';
+    const BUILD_VERSION = '2026-09-06s-ai-labels';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -111,12 +111,20 @@
       } catch (_) {}
     };
     window.addEventListener('error', (ev) => logError('window', ev.error || ev.message));
+    const crumb = (name) => { try { sessionStorage.setItem('receipts_screen', name + ' @ ' + new Date().toISOString().slice(11, 19)); } catch (_) {} };
+    try {
+      const last = sessionStorage.getItem('receipts_screen');
+      const navType = (performance.getEntriesByType('navigation')[0] || {}).type;
+      if (last && navType !== 'navigate') logError('restart', 'App restarted (' + navType + ') while on: ' + last + (performance.memory ? ', heap now ' + Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : ''));
+      if (last && navType === 'navigate') logError('relaunch', 'App relaunched; last screen was: ' + last);
+    } catch (_) {}
     window.addEventListener('unhandledrejection', (ev) => logError('promise', ev.reason));
     // Android Back in an installed PWA closes the app when there is no history. Every sheet registers a close handler
     // and pushes one history entry while open; Back pops it and runs the handler. Closing from a button consumes the
     // entry silently so the stack never drifts.
-    const nav = { stack: [], pendingBacks: 0, queue: [], id: 0 };
-    const navFlush = () => { while (nav.queue.length) { const e = nav.queue.shift(); nav.stack.push(e); try { history.pushState({ sheet: e.id }, ''); } catch (_) {} } };
+    const nav = { stack: [], pendingBacks: 0, queue: [], id: 0, session: Math.random().toString(36).slice(2) };
+    try { if (history.state && history.state.sheet) history.replaceState(null, ''); } catch (_) {}
+    const navFlush = () => { while (nav.queue.length) { const e = nav.queue.shift(); nav.stack.push(e); try { history.pushState({ sheet: e.id, s: nav.session }, ''); } catch (_) {} } };
     window.addEventListener('popstate', () => {
       if (nav.pendingBacks > 0) { nav.pendingBacks--; if (!nav.pendingBacks) navFlush(); return; } // a back we asked for
       const top = nav.stack.pop(); if (top) top.fn(); // the phone's Back: close the topmost sheet
@@ -127,13 +135,13 @@
         if (!open) return;
         const entry = { id: ++nav.id, fn: () => ref.current() };
         // a push while one of our backs is in flight would be swallowed by that back, so queue it until the back lands
-        if (nav.pendingBacks > 0) nav.queue.push(entry); else { nav.stack.push(entry); try { history.pushState({ sheet: entry.id }, ''); } catch (_) {} }
+        if (nav.pendingBacks > 0) nav.queue.push(entry); else { nav.stack.push(entry); try { history.pushState({ sheet: entry.id, s: nav.session }, ''); } catch (_) {} }
         return () => {
           const qi = nav.queue.indexOf(entry); if (qi >= 0) { nav.queue.splice(qi, 1); return; }
           const i = nav.stack.indexOf(entry); if (i < 0) return; // already popped by Back
           nav.stack.splice(i, 1);
           // closed from a button: consume our history entry only when it is the one on top
-          if (history.state && history.state.sheet === entry.id) { nav.pendingBacks++; try { history.back(); } catch (_) { nav.pendingBacks--; } }
+          if (history.state && history.state.sheet === entry.id && history.state.s === nav.session) { nav.pendingBacks++; try { history.back(); } catch (_) { nav.pendingBacks--; } }
         };
       }, [open]);
     }
@@ -542,14 +550,16 @@
           tmp[row + x] = sum / (Math.min(w - 1, x + R) - Math.max(0, x - R) + 1);
         }
       }
-      const mean = new Float32Array(w * h);
+      const mean = tmp; // reuse: the column pass can write over the row pass in place, column by column
+      const col = new Float32Array(h);
       for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) col[y] = tmp[y * w + x];
         let sum = 0;
-        for (let y = 0; y <= Math.min(h - 1, R); y++) sum += tmp[y * w + x];
+        for (let y = 0; y <= Math.min(h - 1, R); y++) sum += col[y];
         for (let y = 0; y < h; y++) {
           const y0 = y - R - 1, y1 = y + R;
-          if (y0 >= 0) sum -= tmp[y0 * w + x];
-          if (y1 < h && y > 0) sum += tmp[y1 * w + x];
+          if (y0 >= 0) sum -= col[y0];
+          if (y1 < h && y > 0) sum += col[y1];
           mean[y * w + x] = sum / (Math.min(h - 1, y + R) - Math.max(0, y - R) + 1);
         }
       }
@@ -578,7 +588,7 @@
         currency: { type: 'string', description: 'ISO code, AUD unless clearly otherwise' },
         category: { type: ['string', 'null'], description: 'One of the allowed categories, or null if none fits' },
         suggested_tags: { type: 'array', items: { type: 'string' }, description: 'Subset of the allowed tags that clearly apply' },
-        items_summary: { type: 'string', description: 'One line: what was bought, main items only' },
+        items_summary: { type: 'string', description: 'The item, as simply as possible: what kind of thing it is, plus brand or model for a durable good. Examples: Fuel, Groceries, Coffee, AirPods Pro, Dyson V15 vacuum, Rates, Electricity. One to four words. Never quantities, litres, prices, or a list of line items.' },
         warranty_note: { type: ['string', 'null'], description: 'Any warranty period or product serial printed on the receipt, else null' },
         receipt_number: { type: ['string', 'null'], description: 'The receipt, invoice, tax invoice or transaction number printed on it, exactly as printed, else null' },
         confidence: {
@@ -600,6 +610,7 @@
       content.push({ type: 'text', text:
         `These are pages of one receipt photographed in Australia. Extract the fields.\n` +
         `Allowed categories: ${categories.join(', ')}. Allowed tags: ${tags.join(', ')}.\n` +
+        `For items_summary give the plainest name for what was bought, one to four words: Fuel, Groceries, Coffee, AirPods Pro, Dyson V15 vacuum. Brand or model only for durable goods. No quantities, litres, unit prices or lists; those belong in the receipt itself. ` +
         `Mark a field's confidence "low" when the print is faint, partly cut off, ambiguous, or you had to guess. ` +
         `Dates in Australia are day first. If a field is not on the receipt at all, return null and mark it low.` });
       let resp;
@@ -1100,6 +1111,7 @@
         canvas.width = 0; canvas.height = 0; // the raw capture is no longer needed
         onDone(blob, enhance);
       };
+      crumb(result ? 'crop:result' : 'crop:edit ' + canvas.width + 'x' + canvas.height);
       if (!preview) return <div className="sheet" style={{ background: '#000' }} />;
       const dims = `${canvas.width}x${canvas.height}${canvas.captureHow === 'photo' ? ' still' : ''}`;
       if (result) return (
@@ -1210,7 +1222,7 @@
           {r.comments && <div className="small muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.comments}</div>}
           <div className="row" style={{ marginTop: 8, gap: 6 }}>
             <button className="chip btn" onClick={onEdit}>Edit</button>
-            {(r.pages || []).length > 0 && <button className="chip btn" disabled={!!reading} onClick={onReread}>{reading ? 'Reading...' : 'Read again'}</button>}
+            {(r.pages || []).length > 0 && <button className="chip btn" disabled={!!reading} onClick={onReread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}
           </div>
         </div>
       );
@@ -1278,6 +1290,56 @@
       );
     }
 
+    // ---------- Bulk re-read review: old vs proposed, one receipt at a time ----------
+    const FIELDS = [['items', 'Item'], ['merchant', 'Merchant'], ['date', 'Date'], ['total', 'Total'], ['gstIncluded', 'GST'], ['category', 'Category'], ['tags', 'Tags'], ['receiptNo', 'Receipt no.'], ['comments', 'Comments']];
+    const showVal = (k, v, cur) => { if (k === 'date') return fmtDate(v) || ''; if (k === 'total') return fmtMoney(v, cur) || ''; if (k === 'gstIncluded') return v ? 'Included' : 'Not included'; if (k === 'tags') return (v || []).map(t => '#' + t).join(' '); return v || ''; };
+    const sameVal = (k, a, b) => {
+      if (k === 'tags') return (a || []).join('|') === (b || []).join('|');
+      if (k === 'gstIncluded') return !!a === !!b;
+      if (k === 'total') { const ea = a === null || a === undefined || a === '', eb = b === null || b === undefined || b === ''; return ea && eb ? true : (!ea && !eb && Math.abs(+a - +b) < 0.005); }
+      return (a || '') === (b || '');
+    };
+    function BulkReview({ review, setReview, settings, setSettings, onApply, onDone }) {
+      const { items, i } = review; const item = items[i];
+      const [edit, setEdit] = useState(null); const [busy, setBusy] = useState(false);
+      useBack(!!edit, () => setEdit(null));
+      const next = () => { const n = items.findIndex((x, k) => k > i && x.status === 'pending'); if (n >= 0) setReview({ items, i: n }); else { const first = items.findIndex(x => x.status === 'pending'); if (first >= 0) setReview({ items, i: first }); else onDone(); } };
+      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); } setBusy(false); next(); };
+      const accept = () => act(() => onApply(item, item.after));
+      const keep = () => act(async () => { item.status = 'kept'; });
+      const acceptAll = () => act(async () => { for (const it of items) if (it.status === 'pending') await onApply(it, it.after); });
+      const openEdit = async () => { const pages = []; for (const pid of item.before.pages || []) { const b = await dbGetImageBlob(pid); if (b) pages.push({ id: pid, blob: b, url: URL.createObjectURL(b) }); } setEdit({ pages, draft: { ...item.after, total: item.after.total ?? '', gstIncluded: !!item.after.gstIncluded, tags: item.after.tags || [] } }); };
+      if (!item) return null;
+      if (edit) return <ReceiptForm draft={edit.draft} pages={edit.pages} settings={settings} setSettings={setSettings} title="Adjust and save" onSave={async (rec) => { const full = { ...item.before, ...rec, id: item.before.id, pages: item.before.pages, thumb: item.before.thumb }; edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); await act(() => onApply(item, full)); }} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} />;
+      const pending = items.filter(x => x.status === 'pending').length;
+      const changed = FIELDS.filter(([k]) => !sameVal(k, item.before[k], item.after[k]));
+      return (
+        <div className="sheet" style={{ zIndex: 45 }}>
+          <div className="topbar"><button className="btn" onClick={onDone}>Close</button><h1 style={{ fontSize: 18 }}>AI re-analysis {i + 1} of {items.length}</h1><span style={{ width: 70 }} /></div>
+          <div className="banner info">{changed.length ? `${changed.length} field${changed.length === 1 ? '' : 's'} would change. Nothing is saved until you accept.` : 'The AI read the same values. Nothing to change.'}{(item.after.unsure || []).length ? ` Unsure: ${item.after.unsure.join(', ')}.` : ''}</div>
+          <div className="card">
+            <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+              {item.before.thumb && <img src={item.before.thumb} className="thumb" style={{ width: 70, height: 90 }} />}
+              <div className="grow" style={{ display: 'grid', gridTemplateColumns: '84px 1fr 1fr', gap: '6px 8px', fontSize: 13 }}>
+                <span /><span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase' }}>Now</span><span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase' }}>AI read</span>
+                {FIELDS.map(([k, label]) => { const diff = !sameVal(k, item.before[k], item.after[k]); return (
+                  <React.Fragment key={k}>
+                    <span className="muted small" style={{ paddingTop: 2 }}>{label}</span>
+                    <span style={{ opacity: diff ? 0.6 : 1, textDecoration: diff ? 'line-through' : 'none', wordBreak: 'break-word' }}>{showVal(k, item.before[k], item.before.currency)}</span>
+                    <span style={{ fontWeight: diff ? 700 : 400, color: diff ? 'var(--navy)' : 'inherit', background: diff ? 'var(--navy-soft)' : 'none', borderRadius: 4, padding: diff ? '0 4px' : 0, wordBreak: 'break-word' }}>{showVal(k, item.after[k], item.after.currency)}</span>
+                  </React.Fragment>); })}
+              </div>
+            </div>
+          </div>
+          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button className="btn primary wide" disabled={busy} onClick={accept}>Accept these values</button>
+            <div className="row"><button className="btn grow" disabled={busy} onClick={keep}>Keep what I have</button><button className="btn grow" disabled={busy} onClick={openEdit}>Edit before saving</button></div>
+            {pending > 1 && <button className="btn wide" disabled={busy} style={{ border: 'none', background: 'none' }} onClick={acceptAll}>Accept all {pending} remaining</button>}
+          </div>
+        </div>
+      );
+    }
+
     // ---------- Capture flow: camera -> crop -> (more pages) -> extract -> review form ----------
     function CaptureFlow({ settings, setSettings, onSaved, onCancel, existing, receipts }) {
       // existing: receipt being edited to add pages to (optional)
@@ -1321,6 +1383,7 @@
       const dupRef = useRef(null); // the latest survivor, read on close (state would be stale inside the close handler)
       const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gstIncluded: false, currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
       if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { dupRef.current = survivor ? { saved: survivor, removedId } : { saved: dupState.saved, removedId: null }; }} onClose={() => { const d = dupRef.current || { saved: dupState.saved, removedId: null }; onSaved(d.saved, d.removedId); }} onEdited={(full) => { if (full.id === dupState.saved.id) { dupRef.current = { ...(dupRef.current || { removedId: null }), saved: full }; setDupState(ds => ({ ...ds, saved: full })); } }} />;
+      crumb('capture:' + stage);
       if (stage === 'choose') return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
@@ -1358,7 +1421,7 @@
             </div>
           </div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <button className="btn primary wide" disabled={!pages.length} onClick={runExtract}>Read receipt with Claude</button>
+            <button className="btn primary wide" disabled={!pages.length} onClick={runExtract}>AI analyse receipt</button>
             <button className="btn wide" onClick={skipExtract}>Enter details by hand</button>
           </div>
         </div>
@@ -1510,7 +1573,7 @@
       const removePage = async (id) => { await dbDel('images', id); const rest = (receipt.pages || []).filter(p => p !== id); const full = { ...receipt, pages: rest, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); };
       const addPageDone = async (blob) => { const id = uid(); await dbPut('images', { id, blob }); const full = { ...receipt, pages: [...(receipt.pages || []), id], updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setAdding(false); };
       if (adding) return <AddPageFlow settings={settings} setSettings={setSettings} onDone={addPageDone} onCancel={() => setAdding(false)} />;
-      if (rescan) return <ReceiptForm draft={{ ...rescan, total: rescan.total ?? '' }} pages={pages} settings={settings} setSettings={setSettings} onSave={async (rec) => { await save(rec); setRescan(null); }} onCancel={() => setRescan(null)} title="Check the re-read" />;
+      if (rescan) return <ReceiptForm draft={{ ...rescan, total: rescan.total ?? '' }} pages={pages} settings={settings} setSettings={setSettings} onSave={async (rec) => { await save(rec); setRescan(null); }} onCancel={() => setRescan(null)} title="Check the AI re-analysis" />;
       if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gstIncluded: !!receipt.gstIncluded, tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
       const col = catColour(receipt.category, settings.categories);
       return (
@@ -1538,7 +1601,7 @@
             </div>
           </div>
           {readErr && <div className="banner err" onClick={() => setReadErr(null)}>{readErr}</div>}
-          <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><div className="row" style={{ gap: 6 }}>{pages.length > 0 && <button className="chip btn" disabled={reading} onClick={reread}>{reading ? 'Reading...' : 'Read again with Claude'}</button>}<button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div></div>
+          <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><div className="row" style={{ gap: 6 }}>{pages.length > 0 && <button className="chip btn" disabled={reading} onClick={reread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}<button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div></div>
           <div style={{ padding: '0 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {pages.map((p, i) => <img key={p.id} src={p.url} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
           </div>
@@ -1883,20 +1946,26 @@
         const targets = receipts.filter(r => selected.has(r.id) && (r.pages || []).length);
         if (!targets.length) return;
         if (!settings.apiKey) { alert('Add your API key in Settings first.'); return; }
-        const state = { done: 0, total: targets.length, errors: [], stop: false }; setBulk({ ...state });
+        const state = { done: 0, total: targets.length, errors: [], stop: false, results: [] }; setBulk({ ...state });
         for (const r of targets) {
           if (state.stop) break;
           try {
             const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); }
             const data = await extractPages(blobs, settings);
             const d = draftFromExtraction(data, settings, r);
-            const full = { ...r, ...d, id: r.id, pages: r.pages, thumb: r.thumb, createdAt: r.createdAt, total: d.total === '' ? null : d.total, updatedAt: new Date().toISOString() };
-            await dbPut('receipts', full);
-            setReceipts(list => list.map(x => x.id === r.id ? full : x));
+            const proposed = { ...r, ...d, id: r.id, pages: r.pages, thumb: r.thumb, createdAt: r.createdAt, total: d.total === '' ? null : d.total };
+            state.results.push({ before: r, after: proposed, status: 'pending' });
           } catch (e) { state.errors.push((r.items || r.merchant || r.id) + ': ' + e.message); logError('bulk-reread', e); }
           state.done++; setBulk({ ...state });
         }
         setBulk(b => ({ ...b, finished: true }));
+        if (state.results.length) setReview({ items: state.results, i: 0 });
+      };
+      const [review, setReview] = useState(null); // { items: [{before, after, status}], i }
+      useBack(!!review, () => setReview(null));
+      const applyProposal = async (item, full) => {
+        const saved = { ...full, updatedAt: new Date().toISOString() };
+        await dbPut('receipts', saved); setReceipts(list => list.map(x => x.id === saved.id ? saved : x)); item.status = 'accepted'; item.after = saved;
       };
       const bulkDelete = async () => {
         const targets = receipts.filter(r => selected.has(r.id));
@@ -1912,7 +1981,9 @@
       const dupPairs = useMemo(() => findDuplicates(receipts, settings.notDuplicates), [receipts, settings.notDuplicates]);
       const onChanged = (r) => { setReceipts(list => list.map(x => x.id === r.id ? r : x)); setOpen(r); };
       const onDeleted = (id) => { setReceipts(list => list.filter(x => x.id !== id)); setOpen(null); };
+      crumb(capturing ? 'capture' : open ? 'detail' : showSettings ? 'settings' : review ? 'bulk-review' : dupReview ? 'duplicates' : selecting ? 'select' : 'list');
       if (capturing) return <CaptureFlow settings={settings} setSettings={setSettings} onSaved={onSaved} onCancel={() => setCapturing(false)} receipts={receipts} />;
+      if (review) return <BulkReview review={review} setReview={setReview} settings={settings} setSettings={setSettings} onApply={applyProposal} onDone={() => { setReview(null); setBulk(null); setSelecting(false); setSelected(new Set()); }} />;
       if (dupReview) return <DuplicateReview pairs={dupPairs} settings={settings} setSettings={setSettings} onResolved={() => reload()} onClose={() => setDupReview(false)} onEdited={(full) => setReceipts(list => list.map(x => x.id === full.id ? full : x))} />;
       if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
       if (showSettings) return (
@@ -1928,7 +1999,7 @@
             <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 32, background: 'var(--card)', borderTop: '1px solid var(--line)', padding: '10px 12px calc(10px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {bulk ? (
                 <>
-                  <div className="row" style={{ justifyContent: 'space-between' }}><span>{bulk.finished ? 'Done: ' : 'Reading '}{bulk.done} of {bulk.total}{bulk.errors.length ? `, ${bulk.errors.length} failed` : ''}</span>{!bulk.finished ? <button className="btn" onClick={() => { bulk.stop = true; }}>Stop</button> : <button className="btn primary" onClick={() => { setBulk(null); setSelecting(false); setSelected(new Set()); }}>Close</button>}</div>
+                  <div className="row" style={{ justifyContent: 'space-between' }}><span>{bulk.finished ? 'AI analysed ' : 'AI analysing '}{bulk.done} of {bulk.total}{bulk.finished ? ', nothing saved yet' : ''}{bulk.errors.length ? `, ${bulk.errors.length} failed` : ''}</span>{!bulk.finished ? <button className="btn" onClick={() => { bulk.stop = true; }}>Stop</button> : (bulk.results && bulk.results.length ? <button className="btn primary" onClick={() => setReview({ items: bulk.results, i: 0 })}>Review {bulk.results.length}</button> : <button className="btn primary" onClick={() => { setBulk(null); setSelecting(false); setSelected(new Set()); }}>Close</button>)}</div>
                   <div style={{ height: 6, background: 'var(--line)', borderRadius: 3 }}><div style={{ height: 6, width: `${bulk.total ? bulk.done / bulk.total * 100 : 0}%`, background: 'var(--navy)', borderRadius: 3, transition: 'width 0.3s' }} /></div>
                   {bulk.errors.length > 0 && <div className="small muted" style={{ maxHeight: 60, overflow: 'auto' }}>{bulk.errors.join('\n')}</div>}
                 </>
@@ -1937,7 +2008,7 @@
                   <button className="btn" onClick={() => { setSelecting(false); setSelected(new Set()); }}>Cancel</button>
                   <span className="grow small muted">{selected.size} selected</span>
                   <button className={'btn danger' + (armDelete ? ' armed' : '')} disabled={!selected.size} onClick={() => armDelete ? bulkDelete() : setArmDelete(true)}>{armDelete ? 'Confirm delete' : 'Delete'}</button>
-                  <button className="btn primary" disabled={!selected.size} onClick={bulkReread}>Read again ({receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length})</button>
+                  <button className="btn primary" disabled={!selected.size} onClick={bulkReread}>AI re-analyse ({receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length})</button>
                 </div>
               )}
             </div>
