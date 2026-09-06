@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06s-ai-labels';
+    const BUILD_VERSION = '2026-09-06t-dup-months';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -588,7 +588,7 @@
         currency: { type: 'string', description: 'ISO code, AUD unless clearly otherwise' },
         category: { type: ['string', 'null'], description: 'One of the allowed categories, or null if none fits' },
         suggested_tags: { type: 'array', items: { type: 'string' }, description: 'Subset of the allowed tags that clearly apply' },
-        items_summary: { type: 'string', description: 'The item, as simply as possible: what kind of thing it is, plus brand or model for a durable good. Examples: Fuel, Groceries, Coffee, AirPods Pro, Dyson V15 vacuum, Rates, Electricity. One to four words. Never quantities, litres, prices, or a list of line items.' },
+        items_summary: { type: 'string', description: 'The item, as simply as possible: the plain type of thing, or brand plus model for a durable good. Examples: Fuel, Gas, Water, Electricity, Rates instalment 3, Groceries, AirPods Pro, Braun shaver 9477cc, Samsung Jet 95 stick vac. One to four words. Never quantities, litres, prices, or a list of line items.' },
         warranty_note: { type: ['string', 'null'], description: 'Any warranty period or product serial printed on the receipt, else null' },
         receipt_number: { type: ['string', 'null'], description: 'The receipt, invoice, tax invoice or transaction number printed on it, exactly as printed, else null' },
         confidence: {
@@ -610,7 +610,7 @@
       content.push({ type: 'text', text:
         `These are pages of one receipt photographed in Australia. Extract the fields.\n` +
         `Allowed categories: ${categories.join(', ')}. Allowed tags: ${tags.join(', ')}.\n` +
-        `For items_summary give the plainest name for what was bought, one to four words: Fuel, Groceries, Coffee, AirPods Pro, Dyson V15 vacuum. Brand or model only for durable goods. No quantities, litres, unit prices or lists; those belong in the receipt itself. ` +
+        `For items_summary give the plainest name for what was bought, one to four words, the way the owner writes them: "Fuel", "Gas", "Water", "Electricity", "Rates instalment 3", "Groceries", "Coffee", "AirPods Pro", "Braun shaver 9477cc", "Samsung Jet 95 stick vac". Brand plus model for a durable good, the plain type for everything else. No quantities, litres, unit prices or lists of line items. ` +
         `Mark a field's confidence "low" when the print is faint, partly cut off, ambiguous, or you had to guess. ` +
         `Dates in Australia are day first. If a field is not on the receipt at all, return null and mark it low.` });
       let resp;
@@ -1179,6 +1179,8 @@
       const days = dayDiff(a.date, b.date);
       if (sameTotal(a.total, b.total) && days === 0) return merch ? 'Same date, total and merchant' : 'Same date and total';
       if (sameTotal(a.total, b.total) && merch && days <= 1) return 'Same merchant and total, a day apart';
+      if (sameTotal(a.total, b.total) && merch && a.date && b.date && a.date.slice(8, 10) === b.date.slice(8, 10) && a.date !== b.date) return 'Same name and total, same day of a different month';
+      if (sameTotal(a.total, b.total) && merch && days <= 62) return 'Same name and total within two months';
       const oneMissing = (a.total === null || a.total === undefined || a.total === '') !== (b.total === null || b.total === undefined || b.total === '');
       if (oneMissing && merch && days === 0) return 'Same date and merchant, one has no total';
       return null;
