@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06g-import-compress';
+const BUILD_VERSION = '2026-09-06h-import-picker';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1681,14 +1681,20 @@ const makeThumb = async blob => {
 const importData = async (file, existing) => {
   let manifest = null,
     images = [];
-  if (/\.zip$/i.test(file.name) || file.type === 'application/zip') {
+  const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+  const isZip = head[0] === 0x50 && head[1] === 0x4b;
+  if (isZip) {
     const entries = await readZip(await file.arrayBuffer());
     const mj = entries.find(e => e.name.split('/').pop() === 'receipts.json');
     if (!mj) throw new Error('receipts.json missing from zip');
     manifest = JSON.parse(new TextDecoder().decode(mj.data));
     images = entries.filter(e => /\.jpe?g$/i.test(e.name) && idFromFileName(e.name));
   } else {
-    manifest = JSON.parse(await file.text());
+    try {
+      manifest = JSON.parse(await file.text());
+    } catch (_) {
+      throw new Error('That file is not a receipts zip or receipts.json');
+    }
   }
   const list = manifest.receipts || [];
   const have = new Set(existing.map(r => r.id));
@@ -4958,7 +4964,6 @@ function Settings({
     }
   }, "Import zip or json", React.createElement("input", {
     type: "file",
-    accept: ".zip,.json,application/zip,application/json",
     hidden: true,
     onChange: e => doImport(e.target.files[0])
   }))), React.createElement("div", {

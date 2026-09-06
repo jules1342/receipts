@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06g-import-compress';
+    const BUILD_VERSION = '2026-09-06h-import-picker';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -708,13 +708,15 @@
     const makeThumb = async (blob) => { const c = await blobToCanvas(blob, 220); return c.toDataURL('image/jpeg', 0.7); };
     const importData = async (file, existing) => {
       let manifest = null, images = [];
-      if (/\.zip$/i.test(file.name) || file.type === 'application/zip') {
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const isZip = head[0] === 0x50 && head[1] === 0x4b; // "PK": Drive and some file managers report odd MIME types, so check the bytes
+      if (isZip) {
         const entries = await readZip(await file.arrayBuffer());
         const mj = entries.find(e => e.name.split('/').pop() === 'receipts.json'); if (!mj) throw new Error('receipts.json missing from zip');
         manifest = JSON.parse(new TextDecoder().decode(mj.data));
         images = entries.filter(e => /\.jpe?g$/i.test(e.name) && idFromFileName(e.name));
       } else {
-        manifest = JSON.parse(await file.text());
+        try { manifest = JSON.parse(await file.text()); } catch (_) { throw new Error('That file is not a receipts zip or receipts.json'); }
       }
       const list = manifest.receipts || []; const have = new Set(existing.map(r => r.id));
       let added = 0, updated = 0;
@@ -1669,7 +1671,7 @@
             <div className="small muted">The zip holds every receipt, its images, and a CSV. Share it to Google Drive from the share sheet, or keep it anywhere. Import accepts that zip, a bare receipts.json, or the Drive folder downloaded as a zip from Google. It merges by receipt and keeps the newer version.</div>
             <button className="btn primary" disabled={busy || !receipts.length} onClick={doExport}>Export everything (zip)</button>
             <button className="btn" disabled={!receipts.length} onClick={doExportCSV}>Export CSV only</button>
-            <label className="btn" style={{ textAlign: 'center' }}>Import zip or json<input type="file" accept=".zip,.json,application/zip,application/json" hidden onChange={e => doImport(e.target.files[0])} /></label>
+            <label className="btn" style={{ textAlign: 'center' }}>Import zip or json<input type="file" hidden onChange={e => doImport(e.target.files[0])} /></label>
           </div>
 
           <div className="section-h"><span>Google Drive sync</span></div>
