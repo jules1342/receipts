@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06i-import-deletes';
+    const BUILD_VERSION = '2026-09-06j-merge-direction';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1145,7 +1145,11 @@
           <div className="banner info">{pair.reason}.</div>
           <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} /><DupCard r={right} cats={settings.categories} label={rightLabel} /></div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button className="btn primary wide" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(left, right); onResolved('merged', m, right.id); })}>Merge into {leftLabel.toLowerCase()} (keeps all pages and notes)</button>
+            <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
+            <div className="row">
+              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(left, right); onResolved('merged', m, right.id); })}>Merge into {leftLabel.toLowerCase()}</button>
+              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(right, left); onResolved('merged', m, left.id); })}>Merge into {rightLabel.toLowerCase()}</button>
+            </div>
             <div className="row">
               <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(right); onResolved('deleted', left, right.id); })}>Keep {leftLabel.toLowerCase()}, delete {rightLabel.toLowerCase()}</button>
               <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(left); onResolved('deleted', right, left.id); })}>Keep {rightLabel.toLowerCase()}, delete {leftLabel.toLowerCase()}</button>
