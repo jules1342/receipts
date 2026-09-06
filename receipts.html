@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06a-drive-connect';
+    const BUILD_VERSION = '2026-09-06b-drive-folder';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -607,7 +607,8 @@
     // What protects it is the authorised origin registered against it (https://jules1342.github.io), so it is
     // useless anywhere else. It is the same client as the Macro app, because both apps share that origin.
     const DRIVE_CLIENT_ID = '662075205003-gfgqm2s951u7hfnne86ok12trlvfdjom.apps.googleusercontent.com';
-    const DRIVE_FOLDER = 'Receipts App';
+    const DRIVE_PATH = ['App Data', 'Receipts']; // folder path in My Drive
+    const DRIVE_FOLDER = DRIVE_PATH.join('/');
     const gis = { token: null, exp: 0, client: null };
     const loadGIS = () => new Promise((res, rej) => {
       if (window.google && google.accounts) return res();
@@ -633,12 +634,19 @@
       if (!r.ok) { let m = ''; try { m = (await r.json()).error.message; } catch (_) {} throw new Error(m || `Drive HTTP ${r.status}`); }
       return r;
     };
+    // Walks DRIVE_PATH from My Drive, creating each folder that is missing. With the drive.file scope the app can only
+    // find folders it created itself, so an "App Data" folder made by another app or by hand is invisible to it and a
+    // second one of the same name is created. That is a Google limitation, not a bug here.
     const driveFolder = async (token) => {
-      const q = encodeURIComponent(`name='${DRIVE_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-      const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`)).json();
-      if (j.files && j.files.length) return j.files[0].id;
-      const c = await (await dfetch(token, 'https://www.googleapis.com/drive/v3/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: DRIVE_FOLDER, mimeType: 'application/vnd.google-apps.folder' }) })).json();
-      return c.id;
+      let parent = 'root';
+      for (const name of DRIVE_PATH) {
+        const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parent}' in parents and trashed=false`);
+        const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`)).json();
+        if (j.files && j.files.length) { parent = j.files[0].id; continue; }
+        const c = await (await dfetch(token, 'https://www.googleapis.com/drive/v3/files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }) })).json();
+        parent = c.id;
+      }
+      return parent;
     };
     const driveList = async (token, folderId) => {
       let files = [], pageToken = '';
@@ -1550,7 +1558,7 @@
 
           <div className="section-h"><span>Google Drive sync</span></div>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="small muted">Keeps a folder called "{DRIVE_FOLDER}" in your Google Drive with every receipt image and a receipts.json. The app can only see files it created. Sync uploads what is new. Restore pulls anything missing on this phone.</div>
+            <div className="small muted">Keeps a folder called "{DRIVE_FOLDER}" in My Drive with every receipt image and a receipts.json. The app can only see files it created. Sync uploads what is new. Restore pulls anything missing on this phone.</div>
             {!settings.driveConnected ? (
               <button className="btn primary" disabled={busy} onClick={driveConnect}>Connect Google Drive</button>
             ) : (
