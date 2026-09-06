@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-05j-white-bg-detect';
+    const BUILD_VERSION = '2026-09-06a-drive-connect';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -108,7 +108,7 @@
     // ---------- Settings (localStorage) ----------
     const SKEY = 'receipts_settings';
     const loadSettings = () => {
-      const base = { apiKey: '', categories: DEFAULT_CATEGORIES.slice(), tags: DEFAULT_TAGS.slice(), currency: 'AUD', enhanceDefault: true, driveClientId: '', driveFolderId: '', lastSync: null, cameraDevice: '' };
+      const base = { apiKey: '', categories: DEFAULT_CATEGORIES.slice(), tags: DEFAULT_TAGS.slice(), currency: 'AUD', enhanceDefault: true, driveConnected: false, driveFolderId: '', lastSync: null, cameraDevice: '' };
       try { const s = JSON.parse(localStorage.getItem(SKEY) || '{}'); return { ...base, ...s }; } catch (_) { return base; }
     };
     const saveSettings = (s) => { try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch (_) {} };
@@ -603,6 +603,10 @@
     };
 
     // ---------- Google Drive (optional) ----------
+    // The OAuth client ID is public by design, the way every Sign in with Google app ships one in its JavaScript.
+    // What protects it is the authorised origin registered against it (https://jules1342.github.io), so it is
+    // useless anywhere else. It is the same client as the Macro app, because both apps share that origin.
+    const DRIVE_CLIENT_ID = '662075205003-gfgqm2s951u7hfnne86ok12trlvfdjom.apps.googleusercontent.com';
     const DRIVE_FOLDER = 'Receipts App';
     const gis = { token: null, exp: 0, client: null };
     const loadGIS = () => new Promise((res, rej) => {
@@ -1405,7 +1409,18 @@
       const [newCat, setNewCat] = useState('');
       const [armed, setArmed] = useState(null);
       const [keyDraft, setKeyDraft] = useState(settings.apiKey);
-      const [cidDraft, setCidDraft] = useState(settings.driveClientId);
+      const [confirmRestore, setConfirmRestore] = useState(false);
+      useEffect(() => { if (!confirmRestore) return; const t = setTimeout(() => setConfirmRestore(false), 4000); return () => clearTimeout(t); }, [confirmRestore]);
+      const driveConnect = async () => {
+        setBusy(true);
+        try { await driveToken(DRIVE_CLIENT_ID, true); setSettings(s => ({ ...s, driveConnected: true })); note('ok', 'Connected to Google Drive. Tap Sync to Drive to back up.'); }
+        catch (e) { note('err', e.message); } finally { setBusy(false); }
+      };
+      const driveDisconnect = () => {
+        try { sessionStorage.removeItem('receipts_gtoken'); } catch (_) {}
+        gis.token = null; gis.exp = 0;
+        setSettings(s => ({ ...s, driveConnected: false, driveFolderId: '' })); setConfirmRestore(false); note('ok', 'Disconnected. Your Drive files are untouched.');
+      };
       useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 3000); return () => clearTimeout(t); }, [armed]);
       const note = (kind, text) => setMsg({ kind, text });
       const doExport = async () => {
@@ -1437,10 +1452,9 @@
       };
       // Drive
       const driveSync = async () => {
-        if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
         setBusy(true);
         try {
-          const token = await driveToken(settings.driveClientId, true);
+          const token = await driveToken(DRIVE_CLIENT_ID, true);
           const folder = settings.driveFolderId || await driveFolder(token);
           const files = await driveList(token, folder);
           const byName = {}; files.forEach(f => byName[f.name] = f);
@@ -1452,15 +1466,14 @@
           }
           const manifest = new Blob([JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) })], { type: 'application/json' });
           await driveUpload(token, folder, 'receipts.json', manifest, byName['receipts.json'] && byName['receipts.json'].id);
-          setSettings(s => ({ ...s, driveFolderId: folder, lastSync: new Date().toISOString() }));
+          setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, lastSync: new Date().toISOString() }));
           note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded.`);
         } catch (e) { note('err', 'Drive sync failed: ' + e.message); } finally { setBusy(false); }
       };
       const driveRestore = async () => {
-        if (!settings.driveClientId) return note('err', 'Add a Google client ID first.');
-        setBusy(true);
+        setConfirmRestore(false); setBusy(true);
         try {
-          const token = await driveToken(settings.driveClientId, true);
+          const token = await driveToken(DRIVE_CLIENT_ID, true);
           const folder = settings.driveFolderId || await driveFolder(token);
           const files = await driveList(token, folder);
           const mf = files.find(f => f.name === 'receipts.json'); if (!mf) throw new Error('No receipts.json in the Drive folder yet.');
@@ -1474,7 +1487,7 @@
             let thumb = null; if (r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }
             await dbPut('receipts', { ...r, thumb }); added++;
           }
-          setSettings(s => ({ ...s, driveFolderId: folder, categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])), tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])) }));
+          setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])), tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])) }));
           await reload(); note('ok', `Restored ${added} receipt${added === 1 ? '' : 's'} and ${imgs} image${imgs === 1 ? '' : 's'} from Drive.`);
         } catch (e) { note('err', 'Restore failed: ' + e.message); } finally { setBusy(false); }
       };
@@ -1537,10 +1550,16 @@
 
           <div className="section-h"><span>Google Drive sync</span></div>
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="small muted">Needs a Google Cloud OAuth client ID for this site's address. See README for the steps. Sync uploads a folder called "{DRIVE_FOLDER}" with every image and a receipts.json.</div>
-            <div className="row"><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="xxxx.apps.googleusercontent.com" value={cidDraft} onChange={e => setCidDraft(e.target.value)} /><button className="btn" onClick={() => { setSettings(s => ({ ...s, driveClientId: cidDraft.trim(), driveFolderId: '' })); note('ok', 'Client ID saved.'); }}>Save</button></div>
-            <div className="row"><button className="btn primary grow" disabled={busy || !settings.driveClientId} onClick={driveSync}>Sync to Drive</button><button className="btn grow" disabled={busy || !settings.driveClientId} onClick={driveRestore}>Restore from Drive</button></div>
-            <div className="small muted">{settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'}</div>
+            <div className="small muted">Keeps a folder called "{DRIVE_FOLDER}" in your Google Drive with every receipt image and a receipts.json. The app can only see files it created. Sync uploads what is new. Restore pulls anything missing on this phone.</div>
+            {!settings.driveConnected ? (
+              <button className="btn primary" disabled={busy} onClick={driveConnect}>Connect Google Drive</button>
+            ) : (
+              <>
+                <div className="row" style={{ justifyContent: 'space-between' }}><span className="row" style={{ gap: 6 }}><span className="sync-dot" style={{ background: 'var(--green)' }} />Connected</span><button className="chip btn" onClick={driveDisconnect}>Disconnect</button></div>
+                <div className="row"><button className="btn primary grow" disabled={busy} onClick={driveSync}>Sync to Drive</button><button className={'btn grow' + (confirmRestore ? ' danger armed' : '')} disabled={busy} onClick={() => confirmRestore ? driveRestore() : setConfirmRestore(true)}>{confirmRestore ? 'Tap again to restore' : 'Restore from Drive'}</button></div>
+                <div className="small muted">{settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'}</div>
+              </>
+            )}
           </div>
 
           <div className="section-h"><span>Diagnostics</span></div>

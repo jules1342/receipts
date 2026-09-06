@@ -34,20 +34,12 @@ Open the site in Chrome on Android, tap the menu, Add to Home screen, Install. I
 ## Claude API key
 Settings, paste the key from console.anthropic.com. It stays in the browser storage on the phone and calls go straight to Anthropic. Extraction uses `claude-opus-5` at low effort with a JSON schema, roughly one to three cents a receipt.
 
-## Google Drive sync (optional, one-time setup, about 10 minutes)
-The app needs an OAuth client ID that is allowed to run from your site's address.
+## Google Drive sync
+Settings, **Connect Google Drive**. Google shows its account picker and asks to allow "See, edit, create and delete only the specific Google Drive files that you use with this app". That is the `drive.file` scope: the app can only reach files it created. After that, **Sync to Drive** uploads new images and a `receipts.json` to a folder called "Receipts App", and **Restore from Drive** (two taps) pulls anything missing on this phone, so a new phone can be set up from Drive. Sync is manual: tap it after a batch of receipts.
 
-1. Go to https://console.cloud.google.com and sign in with the Google account whose Drive you want to use.
-2. Create a project. Name it anything, for example "Receipts app".
-3. Left menu, APIs & Services, Library. Search "Google Drive API" and click Enable.
-4. APIs & Services, OAuth consent screen. Choose External, fill in the app name "Receipts", your email as support email and developer contact, save. Under Audience add your own Gmail address as a test user. You do not need to publish the app; test users can sign in indefinitely.
-5. APIs & Services, Credentials, Create credentials, OAuth client ID. Application type Web application. Under Authorised JavaScript origins add `https://jules1342.github.io` exactly. Origin only: no `/receipts/` path, no trailing slash. Leave redirect URIs empty. Create.
-6. Copy the Client ID (ends in `.apps.googleusercontent.com`). In the app, Settings, Google Drive sync, paste it and Save.
-7. Tap Sync to Drive. Google asks you to sign in and allow "See, edit, create and delete only the specific Google Drive files that you use with this app". That scope means the app can only touch files it created.
+There is nothing to paste. The OAuth client ID is compiled into the app, and it is the same client the Macro app uses, because both apps live on `https://jules1342.github.io` and Google authorises by origin. The client ID is public by design; the origin restriction is what protects it. If the Google Auth Platform setup in the Macro README ever needs redoing, do it once and both apps follow.
 
-The app creates a folder called "Receipts App" in your Drive with every receipt image and a `receipts.json`. Sync uploads what is new. Restore from Drive pulls anything missing on this device, so a new phone can be set up from Drive. Sync is manual: tap it after a batch of receipts.
-
-Note: the Drive code has been written but could not be exercised from the build machine, because it needs your Google account and the live site URL. Expect to report back on the first try.
+Note: the Drive round trip has not been exercised from the build machine. It needs Julian's Google account and the live URL, so the first run on the phone is the real test.
 
 ## Export and import
 Settings, Export everything (zip). On the phone the share sheet opens, so you can send the zip straight to Google Drive, email, or Files. The zip holds `receipts.json`, `receipts.csv`, and `images/`. Import accepts that zip or a bare `receipts.json` and merges by receipt id, keeping the newer copy.
