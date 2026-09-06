@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-05e-zoom-edges-reread';
+const BUILD_VERSION = '2026-09-05j-white-bg-detect';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -600,32 +600,82 @@ const detectReceipt = canvas => {
   const ctx = c.getContext('2d');
   ctx.drawImage(canvas, 0, 0, w, h);
   const d = ctx.getImageData(0, 0, w, h).data;
-  const g = new Float32Array(w * h);
-  for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  const gb = new Float32Array(w * h);
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    let s = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += g[(y + dy) * w + x + dx];
-    gb[y * w + x] = s / 9;
+  const nCh = 5;
+  const ch = [];
+  for (let k = 0; k < nCh; k++) ch.push(new Float32Array(w * h));
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    const r = d[i],
+      g = d[i + 1],
+      b = d[i + 2];
+    const mx = Math.max(r, g, b),
+      mn = Math.min(r, g, b);
+    ch[0][j] = 0.299 * r + 0.587 * g + 0.114 * b;
+    ch[1][j] = r;
+    ch[2][j] = g;
+    ch[3][j] = b;
+    ch[4][j] = mx ? (mx - mn) / mx * 255 : 0;
   }
+  const blur = src => {
+    const o = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = Math.min(h - 1, Math.max(0, y + dy));
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = Math.min(w - 1, Math.max(0, x + dx));
+          s += src[yy * w + xx];
+        }
+      }
+      o[y * w + x] = s / 9;
+    }
+    return o;
+  };
   const mag = new Float32Array(w * h),
     ang = new Float32Array(w * h);
   let maxMag = 0;
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    const i = y * w + x;
-    const gx = gb[i - w + 1] + 2 * gb[i + 1] + gb[i + w + 1] - (gb[i - w - 1] + 2 * gb[i - 1] + gb[i + w - 1]);
-    const gy = gb[i + w - 1] + 2 * gb[i + w] + gb[i + w + 1] - (gb[i - w - 1] + 2 * gb[i - w] + gb[i - w + 1]);
-    const m = Math.hypot(gx, gy);
-    mag[i] = m;
-    ang[i] = Math.atan2(gy, gx);
-    if (m > maxMag) maxMag = m;
+  for (let k = 0; k < nCh; k++) {
+    const gb = blur(ch[k]);
+    const wgt = k === 0 ? 1 : k === 4 ? 1.2 : 0.8;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const gx = gb[i - w + 1] + 2 * gb[i + 1] + gb[i + w + 1] - (gb[i - w - 1] + 2 * gb[i - 1] + gb[i + w - 1]);
+      const gy = gb[i + w - 1] + 2 * gb[i + w] + gb[i + w + 1] - (gb[i - w - 1] + 2 * gb[i - w] + gb[i - w + 1]);
+      const m = Math.hypot(gx, gy) * wgt;
+      if (m > mag[i]) {
+        mag[i] = m;
+        ang[i] = Math.atan2(gy, gx);
+      }
+    }
   }
+  {
+    const coarse = blur(blur(blur(ch[0])));
+    const cs = blur(blur(blur(ch[4])));
+    for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+      const i = y * w + x;
+      const gx = coarse[i - w + 2] + 2 * coarse[i + 2] + coarse[i + w + 2] - (coarse[i - w - 2] + 2 * coarse[i - 2] + coarse[i + w - 2]);
+      const gy = coarse[i + w - 2] + 2 * coarse[i + w] + coarse[i + w + 2] - (coarse[i - w - 2] + 2 * coarse[i - w] + coarse[i - w + 2]);
+      const sx = cs[i - w + 2] + 2 * cs[i + 2] + cs[i + w + 2] - (cs[i - w - 2] + 2 * cs[i - 2] + cs[i + w - 2]);
+      const sy = cs[i + w - 2] + 2 * cs[i + w] + cs[i + w + 2] - (cs[i - w - 2] + 2 * cs[i - w] + cs[i - w + 2]);
+      let m = Math.hypot(gx, gy) * 2.2,
+        a = Math.atan2(gy, gx);
+      const ms = Math.hypot(sx, sy) * 2.6;
+      if (ms > m) {
+        m = ms;
+        a = Math.atan2(sy, sx);
+      }
+      if (m > mag[i]) {
+        mag[i] = m;
+        ang[i] = a;
+      }
+    }
+  }
+  for (let i = 0; i < mag.length; i++) if (mag[i] > maxMag) maxMag = mag[i];
   const hist = new Int32Array(256);
   const hs = 255 / (maxMag || 1);
   for (let i = 0; i < mag.length; i++) hist[Math.min(255, Math.round(mag[i] * hs))]++;
   let acc = 0,
     thr = 255;
-  const want = mag.length * 0.06;
+  const want = mag.length * 0.14;
   for (let b = 255; b >= 0; b--) {
     acc += hist[b];
     if (acc >= want) {
@@ -633,11 +683,12 @@ const detectReceipt = canvas => {
       break;
     }
   }
-  thr = Math.max(thr, 25);
+  thr = Math.max(12, Math.min(thr, 48));
+  const weak = thr;
   const D = Math.ceil(Math.hypot(w, h));
   const nR = 2 * D + 1;
   const nT = 180;
-  const A = new Int32Array(nT * nR);
+  const A = new Float32Array(nT * nR);
   const cosT = new Float32Array(nT),
     sinT = new Float32Array(nT);
   for (let t = 0; t < nT; t++) {
@@ -647,15 +698,16 @@ const detectReceipt = canvas => {
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
     const i = y * w + x;
     if (mag[i] < thr) continue;
+    const vote = 0.5 + 0.5 * Math.sqrt(Math.min(1, mag[i] / (maxMag * 0.35)));
     let phi = Math.round(ang[i] * 180 / Math.PI);
     if (phi < 0) phi += 180;
     if (phi >= 180) phi -= 180;
-    for (let dt = -8; dt <= 8; dt++) {
+    for (let dt = -6; dt <= 6; dt++) {
       let t = phi + dt;
       if (t < 0) t += 180;
       if (t >= 180) t -= 180;
       const r = Math.round(x * cosT[t] + y * sinT[t]) + D;
-      if (r >= 0 && r < nR) A[t * nR + r]++;
+      if (r >= 0 && r < nR) A[t * nR + r] += vote;
     }
   }
   const isHoriz = t => Math.abs(t - 90) <= 28;
@@ -676,7 +728,7 @@ const detectReceipt = canvas => {
   cells.sort((a, b) => b.v - a.v);
   const peaks = [];
   for (const cnd of cells) {
-    if (peaks.length > 80) break;
+    if (peaks.length > 140) break;
     let ok = true;
     for (const p of peaks) {
       const dt = Math.min(Math.abs(p.t - cnd.t), 180 - Math.abs(p.t - cnd.t));
@@ -689,22 +741,70 @@ const detectReceipt = canvas => {
   }
   const cx = w / 2,
     cy = h / 2;
+  const support = (theta, rho) => {
+    const ct = Math.cos(theta),
+      stt = Math.sin(theta);
+    const dx = -stt,
+      dy = ct;
+    const px = rho * ct,
+      py = rho * stt;
+    const span = Math.hypot(w, h);
+    let n = 0,
+      hit = 0,
+      run = 0,
+      bestRun = 0;
+    for (let t = -span; t <= span; t += 2) {
+      const x = Math.round(px + dx * t),
+        y = Math.round(py + dy * t);
+      if (x < 2 || y < 2 || x >= w - 2 || y >= h - 2) continue;
+      n++;
+      let ok = false;
+      for (let o = -2; o <= 2 && !ok; o++) {
+        const xx = Math.round(x + ct * o),
+          yy = Math.round(y + stt * o);
+        const i = yy * w + xx;
+        if (mag[i] >= weak) {
+          let da = Math.abs(ang[i] - theta) % Math.PI;
+          da = Math.min(da, Math.PI - da);
+          if (da < 0.35) ok = true;
+        }
+      }
+      if (ok) {
+        hit++;
+        run++;
+        if (run > bestRun) bestRun = run;
+      } else run = 0;
+    }
+    return n ? {
+      frac: hit / n,
+      run: bestRun * 2 / Math.min(w, h)
+    } : {
+      frac: 0,
+      run: 0
+    };
+  };
   const lines = peaks.map(p => {
     const theta = p.t * Math.PI / 180,
       rho = p.r - D;
     const kind = isHoriz(p.t) ? 'h' : 'v';
     const pos = kind === 'h' ? (rho - cx * Math.cos(theta)) / Math.sin(theta) : (rho - cy * Math.sin(theta)) / Math.cos(theta);
+    const sp = support(theta, rho);
     return {
       theta,
       rho: rho / sc,
-      score: p.v,
+      score: p.v * (0.3 + 0.7 * sp.frac) * (sp.run >= 0.12 ? 1 : 0.5),
       kind,
-      pos: pos / sc
+      pos: pos / sc,
+      frac: sp.frac
     };
-  });
+  }).filter(l => l.frac >= 0.12);
   const cands = (kind, side) => {
     const lim = kind === 'h' ? H : W;
-    return lines.filter(l => l.kind === kind && (side === 0 ? l.pos < lim * 0.55 && l.pos > lim * 0.005 : l.pos > lim * 0.45 && l.pos < lim * 0.995)).sort((a, b) => b.score - a.score).slice(0, 7);
+    const all = lines.filter(l => l.kind === kind && (side === 0 ? l.pos < lim * 0.55 && l.pos > lim * 0.012 : l.pos > lim * 0.45 && l.pos < lim * 0.988)).sort((a, b) => b.score - a.score);
+    const strong = all.slice(0, 5);
+    const sideMax = all.length ? all[0].score : 0;
+    const outer = all.filter(l => l.score >= sideMax * 0.12).sort((a, b) => side === 0 ? a.pos - b.pos : b.pos - a.pos).slice(0, 3);
+    return Array.from(new Set([...strong, ...outer]));
   };
   const inset = 0.02;
   const fb = {
@@ -737,6 +837,7 @@ const detectReceipt = canvas => {
     B = [...cands('h', 1), fb.bottom],
     Lf = [...cands('v', 0), fb.left],
     R = [...cands('v', 1), fb.right];
+  let addExtentGuesses = null;
   const angDiff = (a, b) => {
     let d = Math.abs(a.theta - b.theta) % Math.PI;
     return Math.min(d, Math.PI - d);
@@ -766,8 +867,99 @@ const detectReceipt = canvas => {
   };
   const okPt = p => p && p.x > -W * 0.05 && p.x < W * 1.05 && p.y > -H * 0.05 && p.y < H * 1.05;
   const maxScore = Math.max(1, ...lines.map(l => l.score));
-  let best = null,
-    bestVal = -1;
+  const cell = 8;
+  const gw = Math.ceil(w / cell),
+    gh = Math.ceil(h / cell);
+  const grid = new Float32Array(gw * gh);
+  let gridTotal = 0;
+  const strongThr = Math.max(thr * 2.5, maxMag * 0.12);
+  {
+    const bins = new Float32Array(gw * gh * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (mag[i] < strongThr) continue;
+      let a = ang[i];
+      if (a < 0) a += Math.PI;
+      const bn = Math.min(3, a / (Math.PI / 4) | 0);
+      bins[((y / cell | 0) * gw + (x / cell | 0)) * 4 + bn] += 1;
+    }
+    for (let c = 0; c < gw * gh; c++) {
+      const b0 = bins[c * 4],
+        b1 = bins[c * 4 + 1],
+        b2 = bins[c * 4 + 2],
+        b3 = bins[c * 4 + 3];
+      const n = b0 + b1 + b2 + b3;
+      if (!n) continue;
+      const dom = Math.max(b0, b1, b2, b3) / n;
+      const v = Math.min(n, cell * cell * 0.6) * (1 - dom);
+      grid[c] = v;
+      gridTotal += v;
+    }
+  }
+  const massCells = [];
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    const v = grid[gy * gw + gx];
+    if (v) massCells.push({
+      X: (gx + 0.5) * cell / sc,
+      Y: (gy + 0.5) * cell / sc,
+      v
+    });
+  }
+  if (massCells.length) {
+    const guess = (opp, kind, side) => {
+      const proj = massCells.map(c => ({
+        v: c.v,
+        d: c.X * Math.cos(opp.theta) + c.Y * Math.sin(opp.theta)
+      })).sort((a, b) => a.d - b.d);
+      const tot = proj.reduce((a, c) => a + c.v, 0);
+      let acc = 0,
+        lo = proj[0].d,
+        hi = proj[proj.length - 1].d;
+      for (const c of proj) {
+        acc += c.v;
+        if (acc >= tot * 0.03 && lo === proj[0].d) lo = c.d;
+        if (acc >= tot * 0.97) {
+          hi = c.d;
+          break;
+        }
+      }
+      const margin = (kind === 'h' ? H : W) * 0.06;
+      const rho = side === 0 ? lo - margin : hi + margin;
+      return {
+        theta: opp.theta,
+        rho,
+        score: maxScore * 0.1,
+        kind,
+        guess: true
+      };
+    };
+    for (const o of B.filter(x => !x.fb && !x.guess)) T.push(guess(o, 'h', 0));
+    for (const o of T.filter(x => !x.fb && !x.guess)) B.push(guess(o, 'h', 1));
+    for (const o of R.filter(x => !x.fb && !x.guess)) Lf.push(guess(o, 'v', 0));
+    for (const o of Lf.filter(x => !x.fb && !x.guess)) R.push(guess(o, 'v', 1));
+  }
+  const coverage = q => {
+    if (!gridTotal) return 1;
+    const ex = [],
+      ey = [],
+      ec = [];
+    for (let i = 0; i < 4; i++) {
+      const a = q[i],
+        b = q[(i + 1) % 4];
+      ex.push(b.y - a.y);
+      ey.push(a.x - b.x);
+      ec.push(-(ex[i] * a.x + ey[i] * a.y));
+    }
+    const sgn = Math.sign(ex[0] * q[2].x + ey[0] * q[2].y + ec[0]) || 1;
+    let inside = 0;
+    for (const c of massCells) {
+      let ok = true;
+      for (let i = 0; i < 4 && ok; i++) if (Math.sign(ex[i] * c.X + ey[i] * c.Y + ec[i]) === -sgn) ok = false;
+      if (ok) inside += c.v;
+    }
+    return inside / gridTotal;
+  };
+  const pre = [];
   for (const t of T) for (const b of B) for (const l of Lf) for (const r of R) {
     const q = [lineIntersect(t, l), lineIntersect(t, r), lineIntersect(b, r), lineIntersect(b, l)];
     if (!q.every(okPt) || !convex(q)) continue;
@@ -775,14 +967,36 @@ const detectReceipt = canvas => {
     if (area < 0.1) continue;
     const par = Math.max(angDiff(t, b), angDiff(l, r));
     if (par > 25 * Math.PI / 180) continue;
-    const support = (t.score + b.score + l.score + r.score) / (4 * maxScore);
-    const val = support * (0.6 + 0.4 * Math.sqrt(area)) * (1 - par / (Math.PI / 2));
-    if (val > bestVal) {
-      bestVal = val;
-      best = {
-        q,
-        sides: [t, b, l, r]
-      };
+    let worst = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = q[i],
+        m = q[(i + 1) % 4],
+        c = q[(i + 2) % 4];
+      const v1 = Math.atan2(a.y - m.y, a.x - m.x),
+        v2 = Math.atan2(c.y - m.y, c.x - m.x);
+      let dd = Math.abs(v1 - v2) % (2 * Math.PI);
+      dd = Math.min(dd, 2 * Math.PI - dd);
+      worst = Math.max(worst, Math.abs(dd - Math.PI / 2));
+    }
+    if (worst > 22 * Math.PI / 180) continue;
+    const rect = 1 - Math.max(0, worst - 6 * Math.PI / 180) / (Math.PI / 4);
+    const supportScore = (t.score + b.score + l.score + r.score) / (4 * maxScore);
+    if (supportScore <= 0) continue;
+    const val = supportScore * (0.6 + 0.4 * Math.sqrt(area)) * (1 - par / (Math.PI / 2)) * rect;
+    pre.push({
+      val,
+      q,
+      sides: [t, b, l, r]
+    });
+  }
+  pre.sort((a, b) => b.val - a.val);
+  let best = null,
+    bestVal = -1;
+  for (const c of pre.slice(0, 40)) {
+    const v = c.val * Math.pow(coverage(c.q), 2);
+    if (v > bestVal) {
+      bestVal = v;
+      best = c;
     }
   }
   const detected = !!(best && best.sides.some(x => !x.fb));
