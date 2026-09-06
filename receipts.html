@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06e-duplicates';
+    const BUILD_VERSION = '2026-09-06f-duplicates';
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
     const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -686,7 +686,7 @@
     const buildExportZip = async (receipts, settings) => {
       const enc = new TextEncoder();
       const entries = [
-        { name: 'receipts.json', data: enc.encode(JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) }, null, 2)) },
+        { name: 'receipts.json', data: enc.encode(JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, notDuplicates: settings.notDuplicates || [], receipts: receipts.map(r => ({ ...r, thumb: undefined })) }, null, 2)) },
         { name: 'receipts.csv', data: enc.encode(buildCSV(receipts)) }
       ];
       for (const r of receipts) for (const [i, pid] of (r.pages || []).entries()) {
@@ -720,7 +720,7 @@
         await dbPut('receipts', { ...r, thumb });
         if (have.has(r.id)) updated++; else added++;
       }
-      return { added, updated, categories: manifest.categories || [], tags: manifest.tags || [] };
+      return { added, updated, categories: manifest.categories || [], tags: manifest.tags || [], notDuplicates: manifest.notDuplicates || [] };
     };
     const downloadBlob = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); };
     const shareOrDownload = async (blob, name) => {
@@ -1173,8 +1173,9 @@
         onSaved(full);
       };
       const [dupState, setDupState] = useState(null);
+      const dupRef = useRef(null); // the latest survivor, read on close (state would be stale inside the close handler)
       const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gstIncluded: false, currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
-      if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { if (survivor) setDupState(d => ({ ...d, saved: survivor, removedId })); else setDupState(d => ({ ...d, removedId: null })); }} onClose={() => onSaved(dupState.saved, dupState.removedId)} />;
+      if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { dupRef.current = survivor ? { saved: survivor, removedId } : { saved: dupState.saved, removedId: null }; }} onClose={() => { const d = dupRef.current || { saved: dupState.saved, removedId: null }; onSaved(d.saved, d.removedId); }} />;
       if (stage === 'choose') return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
@@ -1537,7 +1538,7 @@
         if (!file) return; setBusy(true);
         try {
           const res = await importData(file, receipts);
-          setSettings(s => ({ ...s, categories: Array.from(new Set([...s.categories, ...res.categories])), tags: Array.from(new Set([...s.tags, ...res.tags])) }));
+          setSettings(s => ({ ...s, categories: Array.from(new Set([...s.categories, ...res.categories])), tags: Array.from(new Set([...s.tags, ...res.tags])), notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...res.notDuplicates])) }));
           await reload(); note('ok', `Imported: ${res.added} new, ${res.updated} updated.`);
         } catch (e) { note('err', 'Import failed: ' + e.message); } finally { setBusy(false); }
       };
@@ -1570,7 +1571,7 @@
             const blob = await dbGetImageBlob(pid); if (!blob) continue;
             await driveUpload(token, folder, want, blob); up++;
           }
-          const manifest = new Blob([JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, receipts: receipts.map(r => ({ ...r, thumb: undefined })) })], { type: 'application/json' });
+          const manifest = new Blob([JSON.stringify({ app: 'Receipts', build: BUILD_VERSION, exportedAt: new Date().toISOString(), categories: settings.categories, tags: settings.tags, notDuplicates: settings.notDuplicates || [], receipts: receipts.map(r => ({ ...r, thumb: undefined })) })], { type: 'application/json' });
           await driveUpload(token, folder, 'receipts.json', manifest, byName['receipts.json'] && byName['receipts.json'].id);
           setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, lastSync: new Date().toISOString() }));
           note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded${renamed ? `, ${renamed} renamed` : ''}.`);
@@ -1593,7 +1594,7 @@
             let thumb = null; if (r.pages && r.pages[0]) { const b = await dbGetImageBlob(r.pages[0]); if (b) thumb = await makeThumb(b); }
             await dbPut('receipts', { ...r, thumb }); added++;
           }
-          setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])), tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])) }));
+          setSettings(s => ({ ...s, driveConnected: true, driveFolderId: folder, categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])), tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])), notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...(manifest.notDuplicates || [])])) }));
           await reload(); note('ok', `Restored ${added} receipt${added === 1 ? '' : 's'} and ${imgs} image${imgs === 1 ? '' : 's'} from Drive.`);
         } catch (e) { note('err', 'Restore failed: ' + e.message); } finally { setBusy(false); }
       };

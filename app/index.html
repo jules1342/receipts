@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06e-duplicates';
+const BUILD_VERSION = '2026-09-06f-duplicates';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1641,6 +1641,7 @@ const buildExportZip = async (receipts, settings) => {
       exportedAt: new Date().toISOString(),
       categories: settings.categories,
       tags: settings.tags,
+      notDuplicates: settings.notDuplicates || [],
       receipts: receipts.map(r => ({
         ...r,
         thumb: undefined
@@ -1706,7 +1707,8 @@ const importData = async (file, existing) => {
     added,
     updated,
     categories: manifest.categories || [],
-    tags: manifest.tags || []
+    tags: manifest.tags || [],
+    notDuplicates: manifest.notDuplicates || []
   };
 };
 const downloadBlob = (blob, name) => {
@@ -3192,6 +3194,7 @@ function CaptureFlow({
     onSaved(full);
   };
   const [dupState, setDupState] = useState(null);
+  const dupRef = useRef(null);
   const skipExtract = () => {
     setDraft({
       id: uid(),
@@ -3216,16 +3219,21 @@ function CaptureFlow({
     settings: settings,
     setSettings: setSettings,
     onResolved: (kind, survivor, removedId) => {
-      if (survivor) setDupState(d => ({
-        ...d,
+      dupRef.current = survivor ? {
         saved: survivor,
         removedId
-      }));else setDupState(d => ({
-        ...d,
+      } : {
+        saved: dupState.saved,
         removedId: null
-      }));
+      };
     },
-    onClose: () => onSaved(dupState.saved, dupState.removedId)
+    onClose: () => {
+      const d = dupRef.current || {
+        saved: dupState.saved,
+        removedId: null
+      };
+      onSaved(d.saved, d.removedId);
+    }
   });
   if (stage === 'choose') return React.createElement("div", {
     className: "sheet"
@@ -4513,7 +4521,8 @@ function Settings({
       setSettings(s => ({
         ...s,
         categories: Array.from(new Set([...s.categories, ...res.categories])),
-        tags: Array.from(new Set([...s.tags, ...res.tags]))
+        tags: Array.from(new Set([...s.tags, ...res.tags])),
+        notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...res.notDuplicates]))
       }));
       await reload();
       note('ok', `Imported: ${res.added} new, ${res.updated} updated.`);
@@ -4612,6 +4621,7 @@ function Settings({
         exportedAt: new Date().toISOString(),
         categories: settings.categories,
         tags: settings.tags,
+        notDuplicates: settings.notDuplicates || [],
         receipts: receipts.map(r => ({
           ...r,
           thumb: undefined
@@ -4679,7 +4689,8 @@ function Settings({
         driveConnected: true,
         driveFolderId: folder,
         categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])),
-        tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])]))
+        tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])),
+        notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...(manifest.notDuplicates || [])]))
       }));
       await reload();
       note('ok', `Restored ${added} receipt${added === 1 ? '' : 's'} and ${imgs} image${imgs === 1 ? '' : 's'} from Drive.`);
