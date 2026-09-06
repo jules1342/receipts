@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06u-no-blank';
+    const BUILD_VERSION = '2026-09-06v-account-numbers';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -590,14 +590,15 @@
         suggested_tags: { type: 'array', items: { type: 'string' }, description: 'Subset of the allowed tags that clearly apply' },
         items_summary: { type: 'string', description: 'The item, as simply as possible: the plain type of thing, or brand plus model for a durable good. Examples: Fuel, Gas, Water, Electricity, Rates instalment 3, Groceries, AirPods Pro, Braun shaver 9477cc, Samsung Jet 95 stick vac. One to four words. Never quantities, litres, prices, or a list of line items.' },
         warranty_note: { type: ['string', 'null'], description: 'Any warranty period or product serial printed on the receipt, else null' },
-        receipt_number: { type: ['string', 'null'], description: 'The receipt, invoice, tax invoice or transaction number printed on it, exactly as printed, else null' },
+        receipt_number: { type: ['string', 'null'], description: 'The number that identifies THIS document only: receipt number, invoice number, tax invoice number, transaction or order number. Null if the only numbers are account, customer, reference, biller, BPAY, meter or property numbers, which repeat on every bill from that supplier.' },
+        account_number: { type: ['string', 'null'], description: 'Account, customer or reference number for the supplier, if printed. Never put this in receipt_number.' },
         confidence: {
           type: 'object', additionalProperties: false,
           properties: { merchant: { type: 'string', enum: ['high', 'low'] }, date: { type: 'string', enum: ['high', 'low'] }, total: { type: 'string', enum: ['high', 'low'] }, category: { type: 'string', enum: ['high', 'low'] } },
           required: ['merchant', 'date', 'total', 'category']
         }
       },
-      required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'receipt_number', 'confidence']
+      required: ['merchant', 'date', 'total', 'gst', 'currency', 'category', 'suggested_tags', 'items_summary', 'warranty_note', 'receipt_number', 'account_number', 'confidence']
     };
     const extractReceipt = async (pageDataUrls, apiKey, categories, tags) => {
       if (!apiKey) { const e = new Error('No API key. Add one in Settings.'); e.kind = 'no_key'; throw e; }
@@ -611,6 +612,7 @@
         `These are pages of one receipt photographed in Australia. Extract the fields.\n` +
         `Allowed categories: ${categories.join(', ')}. Allowed tags: ${tags.join(', ')}.\n` +
         `For items_summary give the plainest name for what was bought, one to four words, the way the owner writes them: "Fuel", "Gas", "Water", "Electricity", "Rates instalment 3", "Groceries", "Coffee", "AirPods Pro", "Braun shaver 9477cc", "Samsung Jet 95 stick vac". Brand plus model for a durable good, the plain type for everything else. No quantities, litres, unit prices or lists of line items. ` +
+        `receipt_number must identify this one document. Utility bills often print only an account or reference number, which repeats on every bill: put that in account_number and leave receipt_number null. ` +
         `Mark a field's confidence "low" when the print is faint, partly cut off, ambiguous, or you had to guess. ` +
         `Dates in Australia are day first. If a field is not on the receipt at all, return null and mark it low.` });
       let resp;
@@ -857,6 +859,7 @@
         tags: Array.from(new Set([...(b.tags || []), ...tags])),
         comments, items: has(data && data.items_summary) ? data.items_summary : (b.items || ''),
         receiptNo: has(data && data.receipt_number) ? String(data.receipt_number).trim() : (b.receiptNo || ''),
+        accountNo: has(data && data.account_number) ? String(data.account_number).trim() : (b.accountNo || ''),
         unsure, needsReview: unsure.length > 0
       };
     };
@@ -1173,8 +1176,9 @@
     const pairKey = (a, b) => [a.id, b.id].sort().join('|');
     // Why two receipts look like the same one, or null
     const duplicateReason = (a, b) => {
+      // A matching number counts only with a matching date: account and reference numbers repeat across bills
       const na = normName(a.receiptNo), nb = normName(b.receiptNo);
-      if (na && nb && na.length >= 4 && na === nb) return 'Same receipt number';
+      if (na && nb && na.length >= 4 && na === nb && a.date && a.date === b.date) return 'Same receipt number and date';
       const merch = nameSim(a.merchant, b.merchant) || nameSim(a.items, b.items);
       const days = dayDiff(a.date, b.date);
       if (sameTotal(a.total, b.total) && days === 0) return merch ? 'Same date, total and merchant' : 'Same date and total';
@@ -1197,7 +1201,7 @@
     const mergeReceipts = async (keep, drop) => {
       const has = (v) => v !== null && v !== undefined && v !== '';
       const merged = { ...keep };
-      for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency', 'receiptNo']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
+      for (const k of ['items', 'merchant', 'date', 'total', 'category', 'currency', 'receiptNo', 'accountNo']) if (!has(keep[k]) && has(drop[k])) merged[k] = drop[k];
       merged.gstIncluded = !!(keep.gstIncluded || drop.gstIncluded);
       merged.tags = Array.from(new Set([...(keep.tags || []), ...(drop.tags || [])]));
       merged.comments = [keep.comments, drop.comments].filter(Boolean).filter((c, i, arr) => arr.indexOf(c) === i).join('\n');
@@ -1302,7 +1306,7 @@
     }
 
     // ---------- Bulk re-read review: old vs proposed, one receipt at a time ----------
-    const FIELDS = [['items', 'Item'], ['merchant', 'Merchant'], ['date', 'Date'], ['total', 'Total'], ['gstIncluded', 'GST'], ['category', 'Category'], ['tags', 'Tags'], ['receiptNo', 'Receipt no.'], ['comments', 'Comments']];
+    const FIELDS = [['items', 'Item'], ['merchant', 'Merchant'], ['date', 'Date'], ['total', 'Total'], ['gstIncluded', 'GST'], ['category', 'Category'], ['tags', 'Tags'], ['receiptNo', 'Receipt no.'], ['accountNo', 'Account no.'], ['comments', 'Comments']];
     const showVal = (k, v, cur) => { if (k === 'date') return fmtDate(v) || ''; if (k === 'total') return fmtMoney(v, cur) || ''; if (k === 'gstIncluded') return v ? 'Included' : 'Not included'; if (k === 'tags') return (v || []).map(t => '#' + t).join(' '); return v || ''; };
     const sameVal = (k, a, b) => {
       if (k === 'tags') return (a || []).join('|') === (b || []).join('|');
@@ -1526,7 +1530,10 @@
               <label>Tags (pick any)</label>
               <ChipPicker multi options={settings.tags} value={r.tags} onChange={v => set('tags', v)} onAdd={addTag} addLabel="New tag" />
             </div>
-            <div className="field"><label>Receipt or invoice number</label><input value={r.receiptNo || ''} onChange={e => set('receiptNo', e.target.value)} placeholder="As printed, if any" /></div>
+            <div className="row">
+              <div className="field grow"><label>Receipt or invoice no.</label><input value={r.receiptNo || ''} onChange={e => set('receiptNo', e.target.value)} placeholder="This document only" /></div>
+              <div className="field grow"><label>Account no.</label><input value={r.accountNo || ''} onChange={e => set('accountNo', e.target.value)} placeholder="Repeats every bill" /></div>
+            </div>
             <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
             <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">Currency</span><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} style={{ width: 64, padding: '6px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
           </div>
@@ -1609,6 +1616,7 @@
             <div className="kv" style={{ marginTop: 12 }}>
               <span className="k">GST</span><span>{receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'}</span>
               {receipt.receiptNo && <><span className="k">Receipt no.</span><span style={{ fontFamily: 'monospace' }}>{receipt.receiptNo}</span></>}
+              {receipt.accountNo && <><span className="k">Account no.</span><span style={{ fontFamily: 'monospace' }}>{receipt.accountNo}</span></>}
               {receipt.comments && <><span className="k">Comments</span><span style={{ whiteSpace: 'pre-wrap' }}>{receipt.comments}</span></>}
               <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
             </div>
@@ -1664,7 +1672,7 @@
         if (f.review) list = list.filter(r => r.needsReview);
         if (f.from) list = list.filter(r => (r.date || '') >= f.from);
         if (f.to) list = list.filter(r => (r.date || '') <= f.to);
-        if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, r.receiptNo, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
+        if (q.trim()) { const s = q.trim().toLowerCase(); list = list.filter(r => [r.merchant, r.items, r.comments, r.category, r.receiptNo, r.accountNo, (r.tags || []).join(' '), String(r.total)].join(' ').toLowerCase().includes(s)); }
         const byDate = (a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
         if (f.sort === 'date_asc') list.sort(byDate);
         else if (f.sort === 'amount_desc') list.sort((a, b) => (+b.total || 0) - (+a.total || 0));
