@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06h-import-picker';
+const BUILD_VERSION = '2026-09-06i-import-deletes';
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
@@ -1723,9 +1723,28 @@ const importData = async (file, existing) => {
     });
     if (have.has(r.id)) updated++;else added++;
   }
+  let deleted = 0;
+  for (const id of manifest.deleted || []) {
+    const cur = await dbGet('receipts', id);
+    if (!cur) continue;
+    for (const pid of cur.pages || []) await dbDel('images', pid);
+    await dbDel('receipts', id);
+    deleted++;
+  }
+  const allR = await dbGetAll('receipts');
+  const referenced = new Set();
+  allR.forEach(r => (r.pages || []).forEach(pid => referenced.add(pid)));
+  const allI = await dbGetAll('images');
+  let orphans = 0;
+  for (const im of allI) if (!referenced.has(im.id)) {
+    await dbDel('images', im.id);
+    orphans++;
+  }
   return {
     added,
     updated,
+    deleted,
+    orphans,
     categories: manifest.categories || [],
     tags: manifest.tags || [],
     notDuplicates: manifest.notDuplicates || []
@@ -4545,7 +4564,7 @@ function Settings({
         notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...res.notDuplicates]))
       }));
       await reload();
-      note('ok', `Imported: ${res.added} new, ${res.updated} updated.`);
+      note('ok', `Imported: ${res.added} new, ${res.updated} updated${res.deleted ? `, ${res.deleted} removed` : ''}${res.orphans ? `, ${res.orphans} unused image${res.orphans === 1 ? '' : 's'} cleaned up` : ''}.`);
     } catch (e) {
       note('err', 'Import failed: ' + e.message);
     } finally {
