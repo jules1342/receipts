@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06v-account-numbers';
+const BUILD_VERSION = '2026-09-06w-reanalyse-race';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -3182,7 +3182,8 @@ function DupCard({
   onView,
   onEdit,
   onReread,
-  reading
+  reading,
+  busyAny
 }) {
   const col = catColour(r.category, cats);
   return React.createElement("div", {
@@ -3273,7 +3274,7 @@ function DupCard({
     onClick: onEdit
   }, "Edit"), (r.pages || []).length > 0 && React.createElement("button", {
     className: "chip btn",
-    disabled: !!reading,
+    disabled: !!reading || busyAny,
     onClick: onReread
   }, reading ? 'AI reading...' : 'AI re-analyse')));
 }
@@ -3295,6 +3296,7 @@ function DuplicateReview({
   const [reading, setReading] = useState(null);
   useBack(!!edit, () => setEdit(null));
   const live = r => over[r.id] || r;
+  const readingRef = useRef(null);
   const openEdit = async (r, draft) => {
     const pages = [];
     for (const pid of r.pages || []) {
@@ -3308,6 +3310,7 @@ function DuplicateReview({
     setEdit({
       r,
       pages,
+      stamp: Date.now(),
       draft: draft || {
         ...r,
         total: r.total ?? '',
@@ -3317,7 +3320,8 @@ function DuplicateReview({
     });
   };
   const reread = async r => {
-    if (!(r.pages || []).length) return;
+    if (!(r.pages || []).length || readingRef.current) return;
+    readingRef.current = r.id;
     setReading(r.id);
     try {
       const blobs = [];
@@ -3326,13 +3330,14 @@ function DuplicateReview({
         if (b) blobs.push(b);
       }
       const data = await extractPages(blobs, settings);
-      await openEdit(r, {
+      if (readingRef.current === r.id) await openEdit(r, {
         ...draftFromExtraction(data, settings, r),
         total: undefined
       });
     } catch (e) {
       alert(extractErrMsg(e));
     }
+    readingRef.current = null;
     setReading(null);
   };
   const saveEdit = async rec => {
@@ -3408,6 +3413,7 @@ function DuplicateReview({
     const d = edit.draft;
     if (d.total === undefined) d.total = edit.r.total ?? '';
     return React.createElement(ReceiptForm, {
+      key: 'dup-' + edit.r.id + '-' + edit.stamp,
       draft: d,
       pages: edit.pages,
       settings: settings,
@@ -3463,7 +3469,8 @@ function DuplicateReview({
     onView: () => view(left),
     onEdit: () => openEdit(left),
     onReread: () => reread(left),
-    reading: reading === left.id
+    reading: reading === left.id,
+    busyAny: !!reading
   }), React.createElement(DupCard, {
     r: right,
     cats: settings.categories,
@@ -3471,7 +3478,8 @@ function DuplicateReview({
     onView: () => view(right),
     onEdit: () => openEdit(right),
     onReread: () => reread(right),
-    reading: reading === right.id
+    reading: reading === right.id,
+    busyAny: !!reading
   })), React.createElement("div", {
     style: {
       padding: '0 12px',
@@ -3641,6 +3649,7 @@ function BulkReview({
     className: "empty"
   }, "All done."));
   if (edit) return React.createElement(ReceiptForm, {
+    key: 'bulk-' + item.before.id,
     draft: edit.draft,
     pages: edit.pages,
     settings: settings,
@@ -4003,6 +4012,7 @@ function CaptureFlow({
     className: "muted"
   }, "Reading the receipt..."));
   if (stage === 'review' && draft) return React.createElement(ReceiptForm, {
+    key: 'new-' + draft.id,
     draft: draft,
     pages: pages,
     settings: settings,
@@ -4552,12 +4562,16 @@ function ReceiptDetail({
   useBack(adding, () => setAdding(false));
   useBack(!!rescan, () => setRescan(null));
   const reread = async () => {
-    if (!pages.length) return;
+    if (!pages.length || reading) return;
     setReading(true);
     setReadErr(null);
+    const forId = receipt.id;
     try {
       const data = await extractPages(pages.map(p => p.blob), settings);
-      setRescan(draftFromExtraction(data, settings, receipt));
+      if (forId === receipt.id) setRescan({
+        ...draftFromExtraction(data, settings, receipt),
+        stamp: Date.now()
+      });
     } catch (e) {
       setReadErr(extractErrMsg(e));
     }
@@ -4654,6 +4668,7 @@ function ReceiptDetail({
     onCancel: () => setAdding(false)
   });
   if (rescan) return React.createElement(ReceiptForm, {
+    key: 'rescan-' + receipt.id + '-' + rescan.stamp,
     draft: {
       ...rescan,
       total: rescan.total ?? ''
@@ -4669,6 +4684,7 @@ function ReceiptDetail({
     title: "Check the AI re-analysis"
   });
   if (editing) return React.createElement(ReceiptForm, {
+    key: 'edit-' + receipt.id,
     draft: {
       ...receipt,
       total: receipt.total ?? '',

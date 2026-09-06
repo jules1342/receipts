@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06v-account-numbers';
+    const BUILD_VERSION = '2026-09-06w-reanalyse-race';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -1215,7 +1215,7 @@
       return merged;
     };
     const deleteReceiptFully = async (r) => { for (const id of r.pages || []) await dbDel('images', id); await dbDel('receipts', r.id); };
-    function DupCard({ r, cats, label, onView, onEdit, onReread, reading }) {
+    function DupCard({ r, cats, label, onView, onEdit, onReread, reading, busyAny }) {
       const col = catColour(r.category, cats);
       return (
         <div className="card grow" style={{ margin: 0, padding: 10 }}>
@@ -1228,7 +1228,7 @@
           {r.comments && <div className="small muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.comments}</div>}
           <div className="row" style={{ marginTop: 8, gap: 6 }}>
             <button className="chip btn" onClick={onEdit}>Edit</button>
-            {(r.pages || []).length > 0 && <button className="chip btn" disabled={!!reading} onClick={onReread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}
+            {(r.pages || []).length > 0 && <button className="chip btn" disabled={!!reading || busyAny} onClick={onReread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}
           </div>
         </div>
       );
@@ -1245,16 +1245,20 @@
       const [reading, setReading] = useState(null);
       useBack(!!edit, () => setEdit(null));
       const live = (r) => over[r.id] || r;
+      const readingRef = useRef(null);
       const openEdit = async (r, draft) => {
         const pages = []; for (const pid of r.pages || []) { const b = await dbGetImageBlob(pid); if (b) pages.push({ id: pid, blob: b, url: URL.createObjectURL(b) }); }
-        setEdit({ r, pages, draft: draft || { ...r, total: r.total ?? '', gstIncluded: !!r.gstIncluded, tags: r.tags || [] } });
+        setEdit({ r, pages, stamp: Date.now(), draft: draft || { ...r, total: r.total ?? '', gstIncluded: !!r.gstIncluded, tags: r.tags || [] } });
       };
       const reread = async (r) => {
-        if (!(r.pages || []).length) return;
-        setReading(r.id);
-        try { const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); } const data = await extractPages(blobs, settings); await openEdit(r, { ...draftFromExtraction(data, settings, r), total: undefined }); }
-        catch (e) { alert(extractErrMsg(e)); }
-        setReading(null);
+        if (!(r.pages || []).length || readingRef.current) return; // one at a time
+        readingRef.current = r.id; setReading(r.id);
+        try {
+          const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); }
+          const data = await extractPages(blobs, settings);
+          if (readingRef.current === r.id) await openEdit(r, { ...draftFromExtraction(data, settings, r), total: undefined });
+        } catch (e) { alert(extractErrMsg(e)); }
+        readingRef.current = null; setReading(null);
       };
       const saveEdit = async (rec) => {
         const full = { ...edit.r, ...rec, id: edit.r.id, pages: edit.r.pages, thumb: edit.r.thumb, updatedAt: new Date().toISOString() };
@@ -1278,7 +1282,7 @@
       const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); logError('duplicates', e); } setBusy(false); next(); };
       useEffect(() => { if (!pair) onClose(); }, [pair]);
       if (!pair) return <div className="sheet"><div className="empty">All duplicates handled.</div></div>;
-      if (edit) { const d = edit.draft; if (d.total === undefined) d.total = edit.r.total ?? ''; return <ReceiptForm draft={d} pages={edit.pages} settings={settings} setSettings={setSettings} onSave={saveEdit} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} title="Edit this entry" />; }
+      if (edit) { const d = edit.draft; if (d.total === undefined) d.total = edit.r.total ?? ''; return <ReceiptForm key={'dup-' + edit.r.id + '-' + edit.stamp} draft={d} pages={edit.pages} settings={settings} setSettings={setSettings} onSave={saveEdit} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} title="Edit this entry" />; }
       // For a fresh capture, show the new one on the right and prefer merging into the existing one on the left
       const left = live(newId && pair.a.id === newId ? pair.b : pair.a), right = live(newId && pair.a.id === newId ? pair.a : pair.b);
       const leftLabel = newId ? 'Existing' : 'A', rightLabel = newId ? 'Just added' : 'B';
@@ -1287,7 +1291,7 @@
           {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
           <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{remaining > 1 ? ` (${remaining} left)` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
-          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} /></div>
+          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} busyAny={!!reading} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} busyAny={!!reading} /></div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">
@@ -1326,7 +1330,7 @@
       const openEdit = async () => { const pages = []; for (const pid of item.before.pages || []) { const b = await dbGetImageBlob(pid); if (b) pages.push({ id: pid, blob: b, url: URL.createObjectURL(b) }); } setEdit({ pages, draft: { ...item.after, total: item.after.total ?? '', gstIncluded: !!item.after.gstIncluded, tags: item.after.tags || [] } }); };
       useEffect(() => { if (!item) onDone(); }, [item]);
       if (!item) return <div className="sheet"><div className="empty">All done.</div></div>;
-      if (edit) return <ReceiptForm draft={edit.draft} pages={edit.pages} settings={settings} setSettings={setSettings} title="Adjust and save" onSave={async (rec) => { const full = { ...item.before, ...rec, id: item.before.id, pages: item.before.pages, thumb: item.before.thumb }; edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); await act(() => onApply(item, full)); }} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} />;
+      if (edit) return <ReceiptForm key={'bulk-' + item.before.id} draft={edit.draft} pages={edit.pages} settings={settings} setSettings={setSettings} title="Adjust and save" onSave={async (rec) => { const full = { ...item.before, ...rec, id: item.before.id, pages: item.before.pages, thumb: item.before.thumb }; edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); await act(() => onApply(item, full)); }} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} />;
       const pending = items.filter(x => x.status === 'pending').length;
       const changed = FIELDS.filter(([k]) => !sameVal(k, item.before[k], item.after[k]));
       return (
@@ -1420,7 +1424,7 @@
           <div className="spinner dark" /><div className="muted">Reading the receipt...</div>
         </div>
       );
-      if (stage === 'review' && draft) return <ReceiptForm draft={draft} pages={pages} settings={settings} setSettings={setSettings} error={err} onSave={save} onCancel={() => pages.length ? setStage('pages') : setStage('choose')} onAddPage={() => setStage('camera')} onRemovePage={removePage} title="Check the details" />;
+      if (stage === 'review' && draft) return <ReceiptForm key={'new-' + draft.id} draft={draft} pages={pages} settings={settings} setSettings={setSettings} error={err} onSave={save} onCancel={() => pages.length ? setStage('pages') : setStage('choose')} onAddPage={() => setStage('camera')} onRemovePage={removePage} title="Check the details" />;
       return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1>Pages</h1><span style={{ width: 70 }} /></div>
@@ -1577,8 +1581,9 @@
       useBack(adding, () => setAdding(false));
       useBack(!!rescan, () => setRescan(null));
       const reread = async () => {
-        if (!pages.length) return; setReading(true); setReadErr(null);
-        try { const data = await extractPages(pages.map(p => p.blob), settings); setRescan(draftFromExtraction(data, settings, receipt)); }
+        if (!pages.length || reading) return; setReading(true); setReadErr(null);
+        const forId = receipt.id;
+        try { const data = await extractPages(pages.map(p => p.blob), settings); if (forId === receipt.id) setRescan({ ...draftFromExtraction(data, settings, receipt), stamp: Date.now() }); }
         catch (e) { setReadErr(extractErrMsg(e)); }
         setReading(false);
       };
@@ -1593,8 +1598,8 @@
       const removePage = async (id) => { await dbDel('images', id); const rest = (receipt.pages || []).filter(p => p !== id); const full = { ...receipt, pages: rest, updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); };
       const addPageDone = async (blob) => { const id = uid(); await dbPut('images', { id, blob }); const full = { ...receipt, pages: [...(receipt.pages || []), id], updatedAt: new Date().toISOString() }; await dbPut('receipts', full); onChanged(full); setAdding(false); };
       if (adding) return <AddPageFlow settings={settings} setSettings={setSettings} onDone={addPageDone} onCancel={() => setAdding(false)} />;
-      if (rescan) return <ReceiptForm draft={{ ...rescan, total: rescan.total ?? '' }} pages={pages} settings={settings} setSettings={setSettings} onSave={async (rec) => { await save(rec); setRescan(null); }} onCancel={() => setRescan(null)} title="Check the AI re-analysis" />;
-      if (editing) return <ReceiptForm draft={{ ...receipt, total: receipt.total ?? '', gstIncluded: !!receipt.gstIncluded, tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
+      if (rescan) return <ReceiptForm key={'rescan-' + receipt.id + '-' + rescan.stamp} draft={{ ...rescan, total: rescan.total ?? '' }} pages={pages} settings={settings} setSettings={setSettings} onSave={async (rec) => { await save(rec); setRescan(null); }} onCancel={() => setRescan(null)} title="Check the AI re-analysis" />;
+      if (editing) return <ReceiptForm key={'edit-' + receipt.id} draft={{ ...receipt, total: receipt.total ?? '', gstIncluded: !!receipt.gstIncluded, tags: receipt.tags || [] }} pages={pages} settings={settings} setSettings={setSettings} onSave={save} onCancel={() => setEditing(false)} onRemovePage={removePage} onAddPage={() => { setEditing(false); setAdding(true); }} title="Edit receipt" onDelete={del} />;
       const col = catColour(receipt.category, settings.categories);
       return (
         <div className="sheet">
