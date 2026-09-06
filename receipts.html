@@ -100,7 +100,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-06t-dup-months';
+    const BUILD_VERSION = '2026-09-06u-no-blank';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -1140,14 +1140,14 @@
         <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <button onClick={onRetake} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Retake</button>
-            <div style={{ fontSize: 12, opacity: 0.8, textAlign: 'center' }}>{det && det.detected ? 'Edges found. Drag corners or edges.' : 'Drag the corners or edges to the paper.'}<br /><span style={{ opacity: 0.7 }}>{dims} · pinch to zoom</span></div>
+            <div style={{ fontSize: 12, opacity: 0.8, textAlign: 'center' }}>{det && det.detected ? 'Edges found. Drag corners or edges.' : 'Drag the corners or edges to the paper.'}<br /><span style={{ opacity: 0.7 }}>{dims} · pinch to zoom, pan away from the screen edge</span></div>
             <div className="row" style={{ gap: 4 }}>
               {det && det.quad && <button onClick={redetect} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Auto</button>}
               <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Full</button>
             </div>
           </div>
-          <ZoomPane style={{ flex: 1 }} onScale={setZoom}>
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 26 }}>
+          <ZoomPane style={{ flex: 1, margin: '0 34px' }} onScale={setZoom}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '26px 8px' }}>
               <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: `${canvas.width} / ${canvas.height}`, width: canvas.width >= canvas.height ? '100%' : 'auto', height: canvas.width >= canvas.height ? 'auto' : '100%' }}>
                 <img ref={imgRef} src={preview} draggable={false} style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }} />
                 {quad && <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox={`0 0 ${canvas.width} ${canvas.height}`} preserveAspectRatio="none">
@@ -1230,7 +1230,11 @@
       );
     }
     // Reviews a list of pairs one at a time. onResolved(kind, survivor) is called after each action; onClose when done.
-    function DuplicateReview({ pairs, settings, setSettings, onResolved, onClose, newId, onEdited }) {
+    function DuplicateReview({ pairs: livePairs, settings, setSettings, onResolved, onClose, newId, onEdited }) {
+      // The list of pairs changes underneath us after every merge or delete (the parent recomputes it), so work from the
+      // list as it was when the page opened, and skip any pair whose receipts have since gone.
+      const [pairs] = useState(() => livePairs.slice());
+      const [gone, setGone] = useState(() => new Set());
       const [i, setI] = useState(0); const [busy, setBusy] = useState(false);
       const [over, setOver] = useState({}); // id -> receipt as edited here
       const [edit, setEdit] = useState(null); // { r, draft, pages }
@@ -1261,10 +1265,15 @@
         for (const [k, pid] of (r.pages || []).entries()) { const b = await dbGetImageBlob(pid); if (b) { urls.push(URL.createObjectURL(b)); names.push(pageFileName(r, k, pid)); } }
         if (urls.length) setViewer({ urls, names });
       };
-      const pair = pairs[i];
-      const next = () => { if (i + 1 < pairs.length) setI(i + 1); else onClose(); };
-      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); } setBusy(false); next(); };
-      if (!pair) return null;
+      const valid = (k) => k < pairs.length && !gone.has(pairs[k].a.id) && !gone.has(pairs[k].b.id);
+      const firstValidFrom = (k) => { while (k < pairs.length && !valid(k)) k++; return k; };
+      const cur = firstValidFrom(i);
+      const pair = cur < pairs.length ? pairs[cur] : null;
+      const remaining = pairs.filter((_, k) => k >= cur && valid(k)).length;
+      const next = () => { const n = firstValidFrom(cur + 1); if (n < pairs.length) setI(n); else onClose(); };
+      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); logError('duplicates', e); } setBusy(false); next(); };
+      useEffect(() => { if (!pair) onClose(); }, [pair]);
+      if (!pair) return <div className="sheet"><div className="empty">All duplicates handled.</div></div>;
       if (edit) { const d = edit.draft; if (d.total === undefined) d.total = edit.r.total ?? ''; return <ReceiptForm draft={d} pages={edit.pages} settings={settings} setSettings={setSettings} onSave={saveEdit} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} title="Edit this entry" />; }
       // For a fresh capture, show the new one on the right and prefer merging into the existing one on the left
       const left = live(newId && pair.a.id === newId ? pair.b : pair.a), right = live(newId && pair.a.id === newId ? pair.a : pair.b);
@@ -1272,21 +1281,21 @@
       return (
         <div className="sheet" style={{ zIndex: 45 }}>
           {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
-          <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{pairs.length > 1 ? ` ${i + 1} of ${pairs.length}` : ''}</h1><span style={{ width: 70 }} /></div>
+          <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{remaining > 1 ? ` (${remaining} left)` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
           <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} /></div>
           <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">
-              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(left, right); onResolved('merged', m, right.id); })}>Merge into {leftLabel.toLowerCase()}</button>
-              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(right, left); onResolved('merged', m, left.id); })}>Merge into {rightLabel.toLowerCase()}</button>
+              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(left, right); setGone(g => new Set([...g, right.id])); setOver(o => ({ ...o, [m.id]: m })); onResolved('merged', m, right.id); })}>Merge into {leftLabel.toLowerCase()}</button>
+              <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(right, left); setGone(g => new Set([...g, left.id])); setOver(o => ({ ...o, [m.id]: m })); onResolved('merged', m, left.id); })}>Merge into {rightLabel.toLowerCase()}</button>
             </div>
             <div className="row">
-              <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(right); onResolved('deleted', left, right.id); })}>Keep {leftLabel.toLowerCase()}, delete {rightLabel.toLowerCase()}</button>
-              <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(left); onResolved('deleted', right, left.id); })}>Keep {rightLabel.toLowerCase()}, delete {leftLabel.toLowerCase()}</button>
+              <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(right); setGone(g => new Set([...g, right.id])); onResolved('deleted', left, right.id); })}>Keep {leftLabel.toLowerCase()}, delete {rightLabel.toLowerCase()}</button>
+              <button className="btn grow" disabled={busy} onClick={() => act(async () => { await deleteReceiptFully(left); setGone(g => new Set([...g, left.id])); onResolved('deleted', right, left.id); })}>Keep {rightLabel.toLowerCase()}, delete {leftLabel.toLowerCase()}</button>
             </div>
             <button className="btn wide" disabled={busy} onClick={() => act(async () => { setSettings(s => ({ ...s, notDuplicates: [...(s.notDuplicates || []), pairKey(left, right)] })); onResolved('kept', null, null); })}>Keep both, not a duplicate</button>
-            {pairs.length > 1 && <button className="btn wide" disabled={busy} style={{ border: 'none', background: 'none' }} onClick={next}>Decide later</button>}
+            {remaining > 1 && <button className="btn wide" disabled={busy} style={{ border: 'none', background: 'none' }} onClick={next}>Decide later</button>}
           </div>
         </div>
       );
@@ -1311,7 +1320,8 @@
       const keep = () => act(async () => { item.status = 'kept'; });
       const acceptAll = () => act(async () => { for (const it of items) if (it.status === 'pending') await onApply(it, it.after); });
       const openEdit = async () => { const pages = []; for (const pid of item.before.pages || []) { const b = await dbGetImageBlob(pid); if (b) pages.push({ id: pid, blob: b, url: URL.createObjectURL(b) }); } setEdit({ pages, draft: { ...item.after, total: item.after.total ?? '', gstIncluded: !!item.after.gstIncluded, tags: item.after.tags || [] } }); };
-      if (!item) return null;
+      useEffect(() => { if (!item) onDone(); }, [item]);
+      if (!item) return <div className="sheet"><div className="empty">All done.</div></div>;
       if (edit) return <ReceiptForm draft={edit.draft} pages={edit.pages} settings={settings} setSettings={setSettings} title="Adjust and save" onSave={async (rec) => { const full = { ...item.before, ...rec, id: item.before.id, pages: item.before.pages, thumb: item.before.thumb }; edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); await act(() => onApply(item, full)); }} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} />;
       const pending = items.filter(x => x.status === 'pending').length;
       const changed = FIELDS.filter(([k]) => !sameVal(k, item.before[k], item.after[k]));
@@ -1384,6 +1394,7 @@
       const [dupState, setDupState] = useState(null);
       const dupRef = useRef(null); // the latest survivor, read on close (state would be stale inside the close handler)
       const skipExtract = () => { setDraft({ id: uid(), merchant: '', date: todayISO(), total: '', gstIncluded: false, currency: settings.currency, category: '', tags: [], comments: '', items: '', unsure: [], needsReview: false, createdAt: new Date().toISOString() }); setStage('review'); };
+      if (stage === 'dup' && !dupState) { setStage('review'); }
       if (stage === 'dup' && dupState) return <DuplicateReview pairs={dupState.pairs} newId={dupState.saved.id} settings={settings} setSettings={setSettings} onResolved={(kind, survivor, removedId) => { dupRef.current = survivor ? { saved: survivor, removedId } : { saved: dupState.saved, removedId: null }; }} onClose={() => { const d = dupRef.current || { saved: dupState.saved, removedId: null }; onSaved(d.saved, d.removedId); }} onEdited={(full) => { if (full.id === dupState.saved.id) { dupRef.current = { ...(dupRef.current || { removedId: null }), saved: full }; setDupState(ds => ({ ...ds, saved: full })); } }} />;
       crumb('capture:' + stage);
       if (stage === 'choose') return (
@@ -1931,7 +1942,8 @@
       useEffect(() => { reload(); }, []);
       useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {} }, []);
       const onSaved = (r, removedId) => { setReceipts(list => [...list.filter(x => x.id !== r.id && x.id !== removedId), r]); setCapturing(false); setOpen(r); };
-      const [dupReview, setDupReview] = useState(false);
+      const [dupReview, setDupReview] = useState(false); const [dupReviewKey, setDupReviewKey] = useState(0);
+      const openDupReview = () => { setDupReviewKey(k => k + 1); setDupReview(true); };
       useBack(capturing, () => setCapturing(false));
       useBack(!!open, () => setOpen(null));
       useBack(showSettings, () => setShowSettings(false));
@@ -1986,12 +1998,12 @@
       crumb(capturing ? 'capture' : open ? 'detail' : showSettings ? 'settings' : review ? 'bulk-review' : dupReview ? 'duplicates' : selecting ? 'select' : 'list');
       if (capturing) return <CaptureFlow settings={settings} setSettings={setSettings} onSaved={onSaved} onCancel={() => setCapturing(false)} receipts={receipts} />;
       if (review) return <BulkReview review={review} setReview={setReview} settings={settings} setSettings={setSettings} onApply={applyProposal} onDone={() => { setReview(null); setBulk(null); setSelecting(false); setSelected(new Set()); }} />;
-      if (dupReview) return <DuplicateReview pairs={dupPairs} settings={settings} setSettings={setSettings} onResolved={() => reload()} onClose={() => setDupReview(false)} onEdited={(full) => setReceipts(list => list.map(x => x.id === full.id ? full : x))} />;
+      if (dupReview) return <DuplicateReview key={dupReviewKey} pairs={dupPairs} settings={settings} setSettings={setSettings} onResolved={() => reload()} onClose={() => setDupReview(false)} onEdited={(full) => setReceipts(list => list.map(x => x.id === full.id ? full : x))} />;
       if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
       if (showSettings) return (
         <div className="sheet">
           <div className="topbar"><button className="btn" onClick={() => setShowSettings(false)}>Back</button><h1 style={{ fontSize: 18 }}>Settings</h1><span style={{ width: 70 }} /></div>
-          <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} onFindDuplicates={() => { setShowSettings(false); setDupReview(true); }} dupCount={dupPairs.length} />
+          <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} onFindDuplicates={() => { setShowSettings(false); openDupReview(); }} dupCount={dupPairs.length} />
         </div>
       );
       return (
@@ -2015,7 +2027,7 @@
               )}
             </div>
           )}
-          {loaded && dupPairs.length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{dupPairs.length} possible duplicate{dupPairs.length === 1 ? '' : 's'}</span><button className="chip btn" onClick={() => setDupReview(true)}>Review</button></div>}
+          {loaded && dupPairs.length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{dupPairs.length} possible duplicate{dupPairs.length === 1 ? '' : 's'}</span><button className="chip btn" onClick={openDupReview}>Review</button></div>}
           {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={openReceipt} filter={filter} setFilter={setFilter} q={q} setQ={setQ} selecting={selecting} selected={selected} onSelectAll={selectAll} />}
           {!selecting && <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>}
         </div>

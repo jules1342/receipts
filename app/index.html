@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06t-dup-months';
+const BUILD_VERSION = '2026-09-06u-no-blank';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -2994,7 +2994,7 @@ function CropEditor({
     style: {
       opacity: 0.7
     }
-  }, dims, " · pinch to zoom")), React.createElement("div", {
+  }, dims, " · pinch to zoom, pan away from the screen edge")), React.createElement("div", {
     className: "row",
     style: {
       gap: 4
@@ -3019,7 +3019,8 @@ function CropEditor({
     }
   }, "Full"))), React.createElement(ZoomPane, {
     style: {
-      flex: 1
+      flex: 1,
+      margin: '0 34px'
     },
     onScale: setZoom
   }, React.createElement("div", {
@@ -3029,7 +3030,7 @@ function CropEditor({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 26
+      padding: '26px 8px'
     }
   }, React.createElement("div", {
     style: {
@@ -3272,7 +3273,7 @@ function DupCard({
   }, reading ? 'AI reading...' : 'AI re-analyse')));
 }
 function DuplicateReview({
-  pairs,
+  pairs: livePairs,
   settings,
   setSettings,
   onResolved,
@@ -3280,6 +3281,8 @@ function DuplicateReview({
   newId,
   onEdited
 }) {
+  const [pairs] = useState(() => livePairs.slice());
+  const [gone, setGone] = useState(() => new Set());
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
   const [over, setOver] = useState({});
@@ -3365,9 +3368,17 @@ function DuplicateReview({
       names
     });
   };
-  const pair = pairs[i];
+  const valid = k => k < pairs.length && !gone.has(pairs[k].a.id) && !gone.has(pairs[k].b.id);
+  const firstValidFrom = k => {
+    while (k < pairs.length && !valid(k)) k++;
+    return k;
+  };
+  const cur = firstValidFrom(i);
+  const pair = cur < pairs.length ? pairs[cur] : null;
+  const remaining = pairs.filter((_, k) => k >= cur && valid(k)).length;
   const next = () => {
-    if (i + 1 < pairs.length) setI(i + 1);else onClose();
+    const n = firstValidFrom(cur + 1);
+    if (n < pairs.length) setI(n);else onClose();
   };
   const act = async fn => {
     setBusy(true);
@@ -3375,11 +3386,19 @@ function DuplicateReview({
       await fn();
     } catch (e) {
       alert(e.message);
+      logError('duplicates', e);
     }
     setBusy(false);
     next();
   };
-  if (!pair) return null;
+  useEffect(() => {
+    if (!pair) onClose();
+  }, [pair]);
+  if (!pair) return React.createElement("div", {
+    className: "sheet"
+  }, React.createElement("div", {
+    className: "empty"
+  }, "All duplicates handled."));
   if (edit) {
     const d = edit.draft;
     if (d.total === undefined) d.total = edit.r.total ?? '';
@@ -3419,7 +3438,7 @@ function DuplicateReview({
     style: {
       fontSize: 18
     }
-  }, "Possible duplicate", pairs.length > 1 ? ` ${i + 1} of ${pairs.length}` : ''), React.createElement("span", {
+  }, "Possible duplicate", remaining > 1 ? ` (${remaining} left)` : ''), React.createElement("span", {
     style: {
       width: 70
     }
@@ -3467,6 +3486,11 @@ function DuplicateReview({
     disabled: busy,
     onClick: () => act(async () => {
       const m = await mergeReceipts(left, right);
+      setGone(g => new Set([...g, right.id]));
+      setOver(o => ({
+        ...o,
+        [m.id]: m
+      }));
       onResolved('merged', m, right.id);
     })
   }, "Merge into ", leftLabel.toLowerCase()), React.createElement("button", {
@@ -3474,6 +3498,11 @@ function DuplicateReview({
     disabled: busy,
     onClick: () => act(async () => {
       const m = await mergeReceipts(right, left);
+      setGone(g => new Set([...g, left.id]));
+      setOver(o => ({
+        ...o,
+        [m.id]: m
+      }));
       onResolved('merged', m, left.id);
     })
   }, "Merge into ", rightLabel.toLowerCase())), React.createElement("div", {
@@ -3483,6 +3512,7 @@ function DuplicateReview({
     disabled: busy,
     onClick: () => act(async () => {
       await deleteReceiptFully(right);
+      setGone(g => new Set([...g, right.id]));
       onResolved('deleted', left, right.id);
     })
   }, "Keep ", leftLabel.toLowerCase(), ", delete ", rightLabel.toLowerCase()), React.createElement("button", {
@@ -3490,6 +3520,7 @@ function DuplicateReview({
     disabled: busy,
     onClick: () => act(async () => {
       await deleteReceiptFully(left);
+      setGone(g => new Set([...g, left.id]));
       onResolved('deleted', right, left.id);
     })
   }, "Keep ", rightLabel.toLowerCase(), ", delete ", leftLabel.toLowerCase())), React.createElement("button", {
@@ -3502,7 +3533,7 @@ function DuplicateReview({
       }));
       onResolved('kept', null, null);
     })
-  }, "Keep both, not a duplicate"), pairs.length > 1 && React.createElement("button", {
+  }, "Keep both, not a duplicate"), remaining > 1 && React.createElement("button", {
     className: "btn wide",
     disabled: busy,
     style: {
@@ -3596,7 +3627,14 @@ function BulkReview({
       }
     });
   };
-  if (!item) return null;
+  useEffect(() => {
+    if (!item) onDone();
+  }, [item]);
+  if (!item) return React.createElement("div", {
+    className: "sheet"
+  }, React.createElement("div", {
+    className: "empty"
+  }, "All done."));
   if (edit) return React.createElement(ReceiptForm, {
     draft: edit.draft,
     pages: edit.pages,
@@ -3836,6 +3874,9 @@ function CaptureFlow({
     });
     setStage('review');
   };
+  if (stage === 'dup' && !dupState) {
+    setStage('review');
+  }
   if (stage === 'dup' && dupState) return React.createElement(DuplicateReview, {
     pairs: dupState.pairs,
     newId: dupState.saved.id,
@@ -5775,6 +5816,11 @@ function App() {
     setOpen(r);
   };
   const [dupReview, setDupReview] = useState(false);
+  const [dupReviewKey, setDupReviewKey] = useState(0);
+  const openDupReview = () => {
+    setDupReviewKey(k => k + 1);
+    setDupReview(true);
+  };
   useBack(capturing, () => setCapturing(false));
   useBack(!!open, () => setOpen(null));
   useBack(showSettings, () => setShowSettings(false));
@@ -5929,6 +5975,7 @@ function App() {
     }
   });
   if (dupReview) return React.createElement(DuplicateReview, {
+    key: dupReviewKey,
     pairs: dupPairs,
     settings: settings,
     setSettings: setSettings,
@@ -5966,7 +6013,7 @@ function App() {
     reload: reload,
     onFindDuplicates: () => {
       setShowSettings(false);
-      setDupReview(true);
+      openDupReview();
     },
     dupCount: dupPairs.length
   }));
@@ -6077,7 +6124,7 @@ function App() {
     }
   }, React.createElement("span", null, dupPairs.length, " possible duplicate", dupPairs.length === 1 ? '' : 's'), React.createElement("button", {
     className: "chip btn",
-    onClick: () => setDupReview(true)
+    onClick: openDupReview
   }, "Review")), !loaded ? React.createElement("div", {
     className: "empty"
   }, "Loading...") : React.createElement(ReceiptList, {
