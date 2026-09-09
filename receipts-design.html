@@ -3,82 +3,106 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#1F3A5F">
+  <meta name="theme-color" content="#F7F7F8">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Receipts</title>
+  <title>Receipts design</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
+    /* Design system: neutral visual system, house default. Tokens first, nothing improvised below. */
     :root {
-      --bg: #F6F4EE; --card: #FFFFFF; --ink: #1B1F26; --muted: #6B7280; --line: #E4E1D8;
-      --navy: #1F3A5F; --navy-soft: #E6ECF5; --amber: #B7791F; --amber-soft: #FBF1DC;
-      --red: #B23A3A; --green: #2E7D4F; --green-soft: #E3F2E9; --radius: 14px;
+      color-scheme: light dark;
+      --surface: #FFFFFF; --surface-2: #F7F7F8; --surface-3: #EFEFF1;
+      --text: #1A1A1F; --text-2: #5C5C66; --text-3: #8A8A94;
+      --border: #E4E4E8; --border-strong: #D4D4DA;
+      --accent: #2563EB; --accent-tint: #EAF0FD; --accent-text: #1D4ED8; --on-accent: #FFFFFF;
+      --red: #DC2626; --red-tint: #FDECEC; --green: #16A34A; --green-tint: #E9F7EE; --amber: #B45309; --amber-tint: #FDF3E1;
+      --r-control: 8px; --r-card: 12px; --r-pill: 999px;
+      --shadow-float: 0 4px 12px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur: 200ms;
+      /* names the logic still uses */
+      --bg: var(--surface-2); --card: var(--surface); --ink: var(--text); --muted: var(--text-2); --line: var(--border);
+      --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
+        --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
+        --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
+        --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
+        --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+        --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+      }
+    }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    .app { min-height: 100vh; padding-bottom: calc(100px + var(--safe-b)); }
-    .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(10px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .topbar h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
-    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 6px 0 calc(6px + var(--safe-b)); }
-    .tabbar button { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .tabbar button.on { color: var(--navy); font-weight: 600; }
-    .tabbar .ico { font-size: 20px; line-height: 1; }
-    .fab { position: fixed; right: 18px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 12px 10px; }
-    .row { display: flex; align-items: center; gap: 10px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    .app { min-height: 100vh; padding-bottom: calc(96px + var(--safe-b)); max-width: 640px; margin: 0 auto; }
+    .sheet > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+    .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(12px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .topbar h1 { font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .fab { position: fixed; right: 16px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 56px; height: 56px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); border: none; box-shadow: var(--shadow-float); display: flex; align-items: center; justify-content: center; transition: transform var(--dur) var(--ease-out); }
+    .fab:active { transform: scale(0.96); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px 16px; margin: 0 16px 8px; }
+    .row { display: flex; align-items: center; gap: 8px; }
     .grow { flex: 1; min-width: 0; }
-    .muted { color: var(--muted); }
-    .small { font-size: 12px; }
+    .muted { color: var(--text-2); }
+    .small { font-size: 14px; }
     .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: var(--navy-soft); color: var(--navy); border: 1px solid transparent; white-space: nowrap; }
-    .chip.tag { background: var(--green-soft); color: var(--green); }
-    .chip.warn { background: var(--amber-soft); color: var(--amber); }
-    .chip.btn { background: var(--card); border-color: var(--line); color: var(--ink); }
-    .chip.btn.on { background: var(--navy); color: #fff; border-color: var(--navy); }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .thumb { width: 54px; height: 68px; object-fit: cover; border-radius: 8px; background: #eee; border: 1px solid var(--line); flex-shrink: 0; }
-    .btn { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 11px 16px; font-weight: 600; }
-    .btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
-    .btn.danger { color: var(--red); border-color: #E7C9C9; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 20px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+    .chip .dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+    .chip.tag { background: var(--surface); color: var(--text-2); }
+    .chip.warn { background: var(--amber-tint); color: var(--amber); border-color: transparent; }
+    .chip.btn { background: var(--surface); border-color: var(--border); color: var(--text); min-height: 32px; padding: 4px 12px; transition: background var(--dur) var(--ease-out); }
+    .chip.btn.on { background: var(--accent-tint); color: var(--accent-text); border-color: var(--accent); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .thumb { width: 48px; height: 64px; object-fit: cover; border-radius: var(--r-control); background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
+    .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-control); padding: 10px 16px; min-height: 44px; font-weight: 600; font-size: 16px; transition: background var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out); }
+    .btn:active { background: var(--surface-2); }
+    .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .btn.danger { color: var(--red); border-color: var(--border-strong); }
     .btn.danger.armed { background: var(--red); color: #fff; border-color: var(--red); }
     .btn.wide { width: 100%; }
-    .btn:disabled { opacity: 0.45; }
-    .field { margin-bottom: 12px; }
-    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 16px; }
-    .field textarea { min-height: 72px; resize: vertical; }
-    .field.unsure input, .field.unsure select { border-color: var(--amber); background: var(--amber-soft); }
-    .field.unsure { background: var(--amber-soft); margin-left: -8px; margin-right: -8px; padding: 6px 8px; border-radius: 10px; }
-    .unsure-note { font-size: 12px; color: var(--amber); margin-top: 4px; }
-    .section-h { padding: 14px 16px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; }
-    .empty { text-align: center; color: var(--muted); padding: 60px 24px; }
-    .search { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 15px; }
-    .filters { display: flex; gap: 6px; overflow-x: auto; padding: 4px 12px 8px; scrollbar-width: none; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 14px; color: var(--text-2); margin-bottom: 6px; font-weight: 600; }
+    .field label.row { display: flex; align-items: center; min-height: 44px; margin: 0; }
+    input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+    .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; min-height: 44px; border: 1px solid var(--border-strong); border-radius: var(--r-control); background: var(--surface); font-size: 16px; }
+    .field textarea { min-height: 88px; resize: vertical; }
+    .field.unsure input, .field.unsure select { border-color: var(--amber); }
+    .field.unsure { background: var(--amber-tint); margin-left: -8px; margin-right: -8px; padding: 8px 8px 4px; border-radius: var(--r-control); }
+    .unsure-note { font-size: 14px; color: var(--amber); margin-top: 4px; }
+    .section-h { padding: 16px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; align-items: center; }
+    .empty { text-align: center; color: var(--text-2); padding: 64px 24px; font-size: 16px; }
+    .search { width: 100%; padding: 10px 12px; min-height: 44px; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); font-size: 16px; }
+    .filters { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 8px; scrollbar-width: none; }
     .filters::-webkit-scrollbar { display: none; }
-    .flabel { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center; min-width: 64px; flex-shrink: 0; }
+    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; align-self: center; min-width: 64px; flex-shrink: 0; }
     .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding-bottom: calc(24px + var(--safe-b)); }
     .sheet .topbar { background: var(--bg); }
     .pages { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
-    .pages img { height: 120px; border-radius: 8px; border: 1px solid var(--line); }
-    .pages .add { height: 120px; width: 90px; border-radius: 8px; border: 1px dashed var(--muted); background: none; color: var(--muted); font-size: 13px; }
-    .banner { margin: 0 12px 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
-    .banner.err { background: #FBE5E5; color: var(--red); }
-    .banner.ok { background: var(--green-soft); color: var(--green); }
-    .banner.info { background: var(--navy-soft); color: var(--navy); }
-    .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .spinner.dark { border-color: rgba(31,58,95,0.2); border-top-color: var(--navy); }
+    .pages img { height: 120px; border-radius: var(--r-control); border: 1px solid var(--border); }
+    .pages .add { height: 120px; width: 88px; border-radius: var(--r-control); border: 1px dashed var(--border-strong); background: none; color: var(--text-2); font-size: 14px; }
+    .banner { margin: 0 16px 8px; padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
+    .banner.err { background: var(--red-tint); color: var(--red); }
+    .banner.ok { background: var(--green-tint); color: var(--green); }
+    .banner.info { background: var(--accent-tint); color: var(--accent-text); }
+    .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner.dark { border-color: var(--border-strong); border-top-color: var(--accent); }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes focusPulse { 0% { transform: scale(1.3); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 14px; }
-    .kv .k { color: var(--muted); }
-    .total-line { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 112px 1fr; gap: 8px 12px; font-size: 14px; }
+    .kv .k { color: var(--text-2); }
+    .total-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; font-size: 14px; color: var(--text-2); }
     .crop-wrap { position: relative; touch-action: none; user-select: none; }
     .crop-wrap img { display: block; width: 100%; height: auto; }
     .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
@@ -86,10 +110,11 @@
     .handle { transform-origin: center; touch-action: none; }
     .handle.edge { width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 8px; background: rgba(255,255,255,0.1); }
     .handle.edge::after { width: 14px; height: 4px; margin: -2px 0 0 -7px; border-radius: 2px; }
-    .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-    .seg button { flex: 1; border: none; background: var(--card); padding: 9px; font-size: 13px; }
-    .seg button.on { background: var(--navy); color: #fff; }
+    .seg { display: flex; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
+    .seg button { flex: 1; border: none; background: var(--surface); padding: 10px; min-height: 44px; font-size: 14px; }
+    .seg button.on { background: var(--accent); color: var(--on-accent); }
     .sync-dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; }
+    .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; display: block; }
   </style>
   <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
@@ -100,7 +125,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-09a-detail-separator';
+    const BUILD_VERSION = '2026-09-09a-detail-separator-design';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -153,7 +178,7 @@
         if (!this.state.err) return this.props.children;
         return (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Something went wrong</div>
+            <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Something went wrong</div>
             <div className="small muted" style={{ marginBottom: 16, wordBreak: 'break-word' }}>{String(this.state.err && this.state.err.message || this.state.err)}</div>
             <button className="btn primary" onClick={() => window.location.reload()}>Reload</button>
             <div className="small muted" style={{ marginTop: 12 }}>Your receipts are safe. The error is recorded under Settings, Diagnostics.</div>
@@ -163,7 +188,7 @@
     }
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
-    const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
+    const CATEGORY_COLOURS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#0891B2', '#A16207', '#64748B'];
 
     // ---------- Settings (localStorage) ----------
     const SKEY = 'receipts_settings';
@@ -1020,7 +1045,7 @@
           {err ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: 24, textAlign: 'center', gap: 16 }}>
               <div style={{ fontSize: 16, fontWeight: 600 }}>Camera unavailable</div>
-              <div style={{ fontSize: 13, opacity: 0.85 }}>{err}</div>
+              <div style={{ fontSize: 14, opacity: 0.85 }}>{err}</div>
               <label className="btn" style={{ background: '#fff', color: '#000' }}>Choose a photo instead<input type="file" accept="image/*" hidden onChange={e => e.target.files[0] && onPick(e.target.files[0])} /></label>
               <button onClick={onCancel} style={{ background: 'transparent', color: '#fff', border: '1px solid #666', borderRadius: 10, padding: '10px 20px' }}>Close</button>
             </div>
@@ -1032,19 +1057,19 @@
                 {busy && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff' }}>Capturing...</div>}
                 {reticle && <div style={{ position: 'absolute', left: reticle.x - 30, top: reticle.y - 30, width: 60, height: 60, border: '2px solid #fff', borderRadius: 4, pointerEvents: 'none', animation: 'focusPulse 0.9s ease-out forwards' }} />}
                 <div style={{ position: 'absolute', top: 'calc(10px + var(--safe-t))', left: 12, right: 12, display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: 12, opacity: 0.85, pointerEvents: 'none' }}><span>Page {pageNo}</span><span>{res}</span></div>
-                {zoomCaps && <div style={{ position: 'absolute', right: 12, bottom: 34, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 14, padding: '4px 10px', fontSize: 12, pointerEvents: 'none' }}>{zoom.toFixed(1)}x</div>}
-                {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 11, pointerEvents: 'none' }}>{zoomCaps ? 'Pinch to zoom' : 'Zoom not supported on this lens'}{canTapFocus ? ' · tap to focus' : ''}</div>}
+                {zoomCaps && <div style={{ position: 'absolute', right: 12, bottom: 34, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 12, pointerEvents: 'none' }}>{zoom.toFixed(1)}x</div>}
+                {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 12, pointerEvents: 'none' }}>{zoomCaps ? 'Pinch to zoom' : 'Zoom not supported on this lens'}{canTapFocus ? ' · tap to focus' : ''}</div>}
               </div>
               {zoomCaps && <div style={{ background: '#000', padding: '4px 20px 0' }}><input type="range" min={zoomCaps.min} max={zoomCaps.max} step={zoomCaps.step || 0.1} value={zoom} onChange={e => applyZoom(+e.target.value)} style={{ width: '100%' }} /></div>}
               <div style={{ padding: '12px 20px calc(24px + var(--safe-b))', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 74 }}>
-                  <button onClick={() => { stopStream(); onCancel(); }} style={{ background: 'transparent', color: '#fff', border: 'none', fontSize: 15, padding: '8px 0', textAlign: 'left' }}>Cancel</button>
+                  <button onClick={() => { stopStream(); onCancel(); }} style={{ background: 'transparent', color: '#fff', border: 'none', fontSize: 16, padding: '8px 0', textAlign: 'left' }}>Cancel</button>
                   <label style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>Gallery<input type="file" accept="image/*" hidden onChange={e => { if (e.target.files[0]) { stopStream(); onPick(e.target.files[0]); } }} /></label>
                 </div>
                 <button onClick={capture} disabled={!ready || busy} style={{ width: 72, height: 72, borderRadius: 36, background: '#fff', border: '4px solid rgba(255,255,255,0.4)', opacity: ready && !busy ? 1 : 0.4 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', minWidth: 74 }}>
-                  {cams.length > 1 && <button onClick={switchCam} disabled={busy} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 18, padding: '8px 12px', fontSize: 12 }}>Lens {camIdx + 1}/{cams.length}</button>}
-                  {torch !== null && <button onClick={toggleTorch} style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.15)', color: torch ? '#000' : '#fff', border: 'none', borderRadius: 18, padding: '8px 12px', fontSize: 12 }}>Light</button>}
+                  {cams.length > 1 && <button onClick={switchCam} disabled={busy} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none', borderRadius: 18, padding: '8px 16px', fontSize: 12 }}>Lens {camIdx + 1}/{cams.length}</button>}
+                  {torch !== null && <button onClick={toggleTorch} style={{ background: torch ? '#fff' : 'rgba(255,255,255,0.15)', color: torch ? '#000' : '#fff', border: 'none', borderRadius: 18, padding: '8px 16px', fontSize: 12 }}>Light</button>}
                 </div>
               </div>
             </>
@@ -1142,11 +1167,11 @@
       return (
         <div className="sheet" style={{ background: '#111', color: '#fff', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <button onClick={onRetake} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Retake</button>
+            <button onClick={onRetake} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 16 }}>Retake</button>
             <div style={{ fontSize: 12, opacity: 0.8, textAlign: 'center' }}>{det && det.detected ? 'Edges found. Drag corners or edges.' : 'Drag the corners or edges to the paper.'}<br /><span style={{ opacity: 0.7 }}>{dims} · pinch to zoom, pan away from the screen edge</span></div>
             <div className="row" style={{ gap: 4 }}>
-              {det && det.quad && <button onClick={redetect} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Auto</button>}
-              <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, opacity: 0.8 }}>Full</button>
+              {det && det.quad && <button onClick={redetect} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 14, opacity: 0.8 }}>Auto</button>}
+              <button onClick={reset} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 14, opacity: 0.8 }}>Full</button>
             </div>
           </div>
           <ZoomPane style={{ flex: 1, margin: '0 34px' }} onScale={setZoom}>
@@ -1219,12 +1244,12 @@
       const col = catColour(r.category, cats);
       return (
         <div className="card grow" style={{ margin: 0, padding: 10 }}>
-          <div className="small muted" style={{ marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-          {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: '#eee' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
+          <div className="small muted" style={{ marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+          {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-3)' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
           <div style={{ fontWeight: 600, marginTop: 6 }}>{r.items || r.merchant || 'Receipt'}</div>
           <div className="small muted">{r.items ? r.merchant : ''}</div>
           <div className="small">{fmtDate(r.date) || 'No date'} · <span className="amt">{fmtMoney(r.total, r.currency) || 'No total'}</span>{r.receiptNo ? <span className="muted"> · #{r.receiptNo}</span> : null}</div>
-          <div className="chips" style={{ marginTop: 4 }}>{r.category && <span className="chip" style={{ background: col + '22', color: col }}>{r.category}</span>}{(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}{(r.pages || []).length > 0 && <span className="chip" style={{ background: '#eee', color: '#555' }}>{r.pages.length} page{r.pages.length === 1 ? '' : 's'}</span>}</div>
+          <div className="chips" style={{ marginTop: 4 }}>{r.category && <span className="chip"><span className="dot" style={{ background: col }} />{r.category}</span>}{(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}{(r.pages || []).length > 0 && <span className="chip" style={{ background: 'var(--surface-3)', color: 'var(--text-2)' }}>{r.pages.length} page{r.pages.length === 1 ? '' : 's'}</span>}</div>
           {r.comments && <div className="small muted" style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{r.comments}</div>}
           <div className="row" style={{ marginTop: 8, gap: 6 }}>
             <button className="chip btn" onClick={onEdit}>Edit</button>
@@ -1289,10 +1314,10 @@
       return (
         <div className="sheet" style={{ zIndex: 45 }}>
           {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
-          <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 18 }}>Possible duplicate{remaining > 1 ? ` (${remaining} left)` : ''}</h1><span style={{ width: 70 }} /></div>
+          <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 20 }}>Possible duplicate{remaining > 1 ? ` (${remaining} left)` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
-          <div className="row" style={{ alignItems: 'stretch', padding: '0 12px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} busyAny={!!reading} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} busyAny={!!reading} /></div>
-          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="row" style={{ alignItems: 'stretch', padding: '0 16px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} busyAny={!!reading} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} busyAny={!!reading} /></div>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">
               <button className="btn primary grow" disabled={busy} onClick={() => act(async () => { const m = await mergeReceipts(left, right); setGone(g => new Set([...g, right.id])); setOver(o => ({ ...o, [m.id]: m })); onResolved('merged', m, right.id); })}>Merge into {leftLabel.toLowerCase()}</button>
@@ -1335,13 +1360,13 @@
       const changed = FIELDS.filter(([k]) => !sameVal(k, item.before[k], item.after[k]));
       return (
         <div className="sheet" style={{ zIndex: 45 }}>
-          <div className="topbar"><button className="btn" onClick={onDone}>Close</button><h1 style={{ fontSize: 18 }}>AI re-analysis {i + 1} of {items.length}</h1><span style={{ width: 70 }} /></div>
+          <div className="topbar"><button className="btn" onClick={onDone}>Close</button><h1 style={{ fontSize: 20 }}>AI re-analysis {i + 1} of {items.length}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{changed.length ? `${changed.length} field${changed.length === 1 ? '' : 's'} would change. Nothing is saved until you accept.` : 'The AI read the same values. Nothing to change.'}{(item.after.unsure || []).length ? ` Unsure: ${item.after.unsure.join(', ')}.` : ''}</div>
           <div className="card">
             <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
               {item.before.thumb && <img src={item.before.thumb} className="thumb" style={{ width: 70, height: 90 }} />}
-              <div className="grow" style={{ display: 'grid', gridTemplateColumns: '84px 1fr 1fr', gap: '6px 8px', fontSize: 13 }}>
-                <span /><span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase' }}>Now</span><span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase' }}>AI read</span>
+              <div className="grow" style={{ display: 'grid', gridTemplateColumns: '84px 1fr 1fr', gap: '6px 8px', fontSize: 14 }}>
+                <span /><span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Now</span><span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase' }}>AI read</span>
                 {FIELDS.map(([k, label]) => { const diff = !sameVal(k, item.before[k], item.after[k]); return (
                   <React.Fragment key={k}>
                     <span className="muted small" style={{ paddingTop: 2 }}>{label}</span>
@@ -1351,7 +1376,7 @@
               </div>
             </div>
           </div>
-          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button className="btn primary wide" disabled={busy} onClick={accept}>Accept these values</button>
             <div className="row"><button className="btn grow" disabled={busy} onClick={keep}>Keep what I have</button><button className="btn grow" disabled={busy} onClick={openEdit}>Edit before saving</button></div>
             {pending > 1 && <button className="btn wide" disabled={busy} style={{ border: 'none', background: 'none' }} onClick={acceptAll}>Accept all {pending} remaining</button>}
@@ -1407,8 +1432,8 @@
       crumb('capture:' + stage);
       if (stage === 'choose') return (
         <div className="sheet">
-          <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 18 }}>New receipt</h1><span style={{ width: 70 }} /></div>
-          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="topbar"><button className="btn" onClick={onCancel}>Cancel</button><h1 style={{ fontSize: 20 }}>New receipt</h1><span style={{ width: 70 }} /></div>
+          <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button className="btn primary wide" style={{ padding: 16 }} onClick={() => setStage('camera')}>Take a photo</button>
             <button className="btn wide" style={{ padding: 16 }} onClick={() => fileRef.current && fileRef.current.click()}>Choose from gallery</button>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => e.target.files[0] && onPick(e.target.files[0])} />
@@ -1441,14 +1466,14 @@
               <button className="add" onClick={() => setStage('camera')}>+ Add page</button>
             </div>
           </div>
-          <div style={{ padding: '0 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button className="btn primary wide" disabled={!pages.length} onClick={runExtract}>AI analyse receipt</button>
             <button className="btn wide" onClick={skipExtract}>Enter details by hand</button>
           </div>
         </div>
       );
     }
-    const var_red = () => '#B23A3A';
+    const var_red = () => 'var(--red)';
 
     // ---------- Receipt form (used for new and edit) ----------
     function DateField({ value, onChange, placeholder }) {
@@ -1460,7 +1485,7 @@
       return (
         <div className="row" style={{ position: 'relative', gap: 6 }}>
           <input className="grow" inputMode="numeric" placeholder={placeholder || 'dd/mm/yyyy'} value={text} onChange={e => setText(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); e.target.blur(); } }} />
-          <button type="button" className="btn" style={{ padding: '10px 12px' }} onClick={openPicker} aria-label="Pick a date">📅</button>
+          <button type="button" className="btn" style={{ padding: '0 16px', minWidth: 44 }} onClick={openPicker} aria-label="Pick a date"><svg className="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></button>
           <input ref={pickRef} type="date" value={value || ''} onChange={e => onChange(e.target.value)} tabIndex={-1} style={{ position: 'absolute', right: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
         </div>
       );
@@ -1475,7 +1500,7 @@
           {options.map(o => <button key={o} type="button" className={'chip btn' + (selected.includes(o) ? ' on' : '')} onClick={() => toggle(o)}>{multi ? '#' : ''}{o}</button>)}
           {adding ? (
             <span className="row" style={{ gap: 4 }}>
-              <input autoFocus style={{ padding: '4px 8px', borderRadius: 999, border: '1px solid var(--line)', width: 130, fontSize: 13 }} value={txt} onChange={e => setTxt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') setAdding(false); }} onBlur={commit} placeholder={addLabel} />
+              <input autoFocus style={{ padding: '4px 8px', borderRadius: 999, border: '1px solid var(--line)', width: 130, fontSize: 14 }} value={txt} onChange={e => setTxt(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') setAdding(false); }} onBlur={commit} placeholder={addLabel} />
             </span>
           ) : <button type="button" className="chip btn" style={{ borderStyle: 'dashed' }} onClick={() => setAdding(true)}>+ New</button>}
         </div>
@@ -1498,7 +1523,7 @@
       const Note = ({ k }) => unsure(k) ? <div className="unsure-note">Check this</div> : null;
       return (
         <div className="sheet">
-          <div className="topbar"><button className="btn" onClick={onCancel}>Back</button><h1 style={{ fontSize: 18 }}>{title}</h1><button className="btn primary" onClick={doSave} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
+          <div className="topbar"><button className="btn" onClick={onCancel}>Back</button><h1 style={{ fontSize: 20 }}>{title}</h1><button className="btn primary" onClick={doSave} disabled={saving}>{saving ? '...' : 'Save'}</button></div>
           {error && <div className="banner err">{error}</div>}
           {(r.unsure || []).length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Highlighted fields need a check. They were faint, missing, or a guess.</div>}
           <div className="card">
@@ -1506,7 +1531,7 @@
               {pages.map((p) => (
                 <div key={p.id} style={{ position: 'relative' }}>
                   <img src={p.url} />
-                  {onRemovePage && <button onClick={() => onRemovePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: '#B23A3A', color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>}
+                  {onRemovePage && <button onClick={() => onRemovePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: 'var(--red)', color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>}
                 </div>
               ))}
               {onAddPage && <button className="add" onClick={onAddPage}>+ Add page</button>}
@@ -1520,7 +1545,7 @@
               <div className={'field' + (unsure('total') ? ' unsure' : '')} style={{ width: 130 }}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" /><Note k="total" /></div>
             </div>
             <div className="field">
-              <label className="row" style={{ justifyContent: 'space-between', textTransform: 'none', letterSpacing: 0, fontSize: 15, fontWeight: 500, color: 'var(--ink)', cursor: 'pointer' }}>
+              <label className="row" style={{ justifyContent: 'space-between', textTransform: 'none', letterSpacing: 0, fontSize: 16, fontWeight: 400, color: 'var(--ink)', cursor: 'pointer' }}>
                 <span>GST included{r.gstIncluded && r.total !== '' ? <span className="muted small"> ({fmtMoney(gstOf(r.total), r.currency)})</span> : null}</span>
                 <input type="checkbox" checked={!!r.gstIncluded} onChange={e => set('gstIncluded', e.target.checked)} style={{ width: 22, height: 22 }} />
               </label>
@@ -1541,7 +1566,7 @@
             <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
             <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">Currency</span><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} style={{ width: 64, padding: '6px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
           </div>
-          {onDelete && <div style={{ padding: '0 12px 20px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
+          {onDelete && <div style={{ padding: '0 16px 20px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
         </div>
       );
     }
@@ -1552,9 +1577,9 @@
       return (
         <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 70, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 'calc(10px + var(--safe-t)) 16px 6px', display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 15 }}>Close</button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 16 }}>Close</button>
             <span>{i + 1} / {urls.length}</span>
-            <a href={urls[i]} download={(names && names[i]) || `receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 13 }}>Save</a>
+            <a href={urls[i]} download={(names && names[i]) || `receipt-page-${i + 1}.jpg`} style={{ color: '#fff', fontSize: 14 }}>Save</a>
           </div>
           <ZoomPane key={i} style={{ flex: 1 }} maxScale={8}>
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1604,18 +1629,18 @@
       return (
         <div className="sheet">
           {viewer !== null && <ImageViewer urls={pages.map(p => p.url)} names={pages.map((p, i) => pageFileName(receipt, i, p.id))} start={viewer} onClose={() => setViewer(null)} />}
-          <div className="topbar"><button className="btn" onClick={onClose}>Back</button><h1 style={{ fontSize: 18 }}>Receipt</h1><button className="btn" onClick={() => setEditing(true)}>Edit</button></div>
+          <div className="topbar"><button className="btn" onClick={onClose}>Back</button><h1 style={{ fontSize: 20 }}>Receipt</h1><button className="btn" onClick={() => setEditing(true)}>Edit</button></div>
           {receipt.needsReview && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)' }}>Some fields were unsure when this was read. Open Edit to confirm them.</div>}
           <div className="card">
             <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div className="grow">
-                <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.25 }}>{receipt.items || receipt.merchant || 'Receipt'}</div>
-                <div className="muted" style={{ marginTop: 2 }}>{[receipt.items ? (receipt.merchant || 'Unknown merchant') : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · ')}</div>
+                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25 }}>{receipt.items || receipt.merchant || 'Receipt'}</div>
+                <div className="muted" style={{ marginTop: 2, fontSize: 14 }}>{[receipt.items ? (receipt.merchant || 'Unknown merchant') : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · ')}</div>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 700, whiteSpace: 'nowrap' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
+              <div style={{ fontSize: 24, fontWeight: 600, whiteSpace: 'nowrap' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
             </div>
             <div className="chips" style={{ marginTop: 10 }}>
-              {receipt.category && <span className="chip" style={{ background: col + '22', color: col }}>{receipt.category}</span>}
+              {receipt.category && <span className="chip"><span className="dot" style={{ background: col }} />{receipt.category}</span>}
               {(receipt.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
             </div>
             <div className="kv" style={{ marginTop: 12 }}>
@@ -1628,7 +1653,7 @@
           </div>
           {readErr && <div className="banner err" onClick={() => setReadErr(null)}>{readErr}</div>}
           <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><div className="row" style={{ gap: 6 }}>{pages.length > 0 && <button className="chip btn" disabled={reading} onClick={reread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}<button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div></div>
-          <div style={{ padding: '0 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {pages.map((p, i) => <img key={p.id} src={p.url} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
           </div>
         </div>
@@ -1650,18 +1675,18 @@
       return (
         <div className="card row" onClick={onOpen} style={{ cursor: 'pointer', borderColor: selected ? 'var(--navy)' : undefined, background: selected ? 'var(--navy-soft)' : undefined }}>
           {selectable && <div style={{ width: 24, height: 24, borderRadius: 12, border: '2px solid ' + (selected ? 'var(--navy)' : 'var(--line)'), background: selected ? 'var(--navy)' : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{selected ? '✓' : ''}</div>}
-          {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--muted)' }}>no image</div>}
+          {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--text-3)' }}>none</div>}
           <div className="grow">
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontWeight: 600, lineHeight: 1.25 }}>{r.items || r.merchant || 'Receipt'}</div>
+              <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.3 }}>{r.items || r.merchant || 'Receipt'}</div>
               <div className="amt" style={{ whiteSpace: 'nowrap' }}>{fmtMoney(r.total, r.currency)}</div>
             </div>
             <div className="small muted">{r.items ? (r.merchant || 'Unknown merchant') + ' · ' : ''}{fmtDate(r.date)}</div>
             <div className="chips" style={{ marginTop: 5 }}>
-              {r.category && <span className="chip" style={{ background: col + '22', color: col }}>{r.category}</span>}
+              {r.category && <span className="chip"><span className="dot" style={{ background: col }} />{r.category}</span>}
               {(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
               {r.needsReview && <span className="chip warn">Check</span>}
-              {(r.pages || []).length > 1 && <span className="chip" style={{ background: '#eee', color: '#555' }}>{r.pages.length} pages</span>}
+              {(r.pages || []).length > 1 && <span className="chip" style={{ background: 'var(--surface-3)', color: 'var(--text-2)' }}>{r.pages.length} pages</span>}
             </div>
           </div>
         </div>
@@ -1694,7 +1719,7 @@
       const sortLabel = { date_desc: 'Newest first', date_asc: 'Oldest first', amount_desc: 'Largest first', amount_asc: 'Smallest first' }[f.sort];
       return (
         <>
-          <div className="row" style={{ padding: '0 12px 8px', gap: 8 }}>
+          <div className="row" style={{ padding: '0 16px 8px', gap: 8 }}>
             <input className="search grow" placeholder="Search item, merchant, comments" value={q} onChange={e => setQ(e.target.value)} />
             <button className={'btn' + (n || panel ? ' primary' : '')} style={{ whiteSpace: 'nowrap', padding: '10px 14px' }} onClick={() => setPanel(p => !p)}>Filter{n ? ` (${n})` : ''}</button>
           </div>
@@ -1862,9 +1887,9 @@
           <div className="card">
             {settings.categories.map(c => (
               <div key={c} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                <span className="chip" style={{ background: catColour(c, settings.categories) + '22', color: catColour(c, settings.categories) }}>{c}</span>
+                <span className="chip"><span className="dot" style={{ background: catColour(c, settings.categories) }} />{c}</span>
                 <span className="grow small muted">{receipts.filter(r => r.category === c).length} receipts</span>
-                <button className="chip btn" style={armed === c ? { background: '#B23A3A', color: '#fff', borderColor: '#B23A3A' } : {}} onClick={() => armed === c ? removeCat(c) : setArmed(c)}>{armed === c ? 'Confirm' : 'Remove'}</button>
+                <button className="chip btn" style={armed === c ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' } : {}} onClick={() => armed === c ? removeCat(c) : setArmed(c)}>{armed === c ? 'Confirm' : 'Remove'}</button>
               </div>
             ))}
             <div className="row" style={{ marginTop: 10 }}><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New category" value={newCat} onChange={e => setNewCat(e.target.value)} /><button className="btn" onClick={addCat}>Add</button></div>
@@ -1876,7 +1901,7 @@
               <div key={t} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
                 <span className="chip tag">#{t}</span>
                 <span className="grow small muted">{receipts.filter(r => (r.tags || []).includes(t)).length} receipts</span>
-                <button className="chip btn" style={armed === 'tag:' + t ? { background: '#B23A3A', color: '#fff', borderColor: '#B23A3A' } : {}} onClick={() => armed === 'tag:' + t ? removeTag(t) : setArmed('tag:' + t)}>{armed === 'tag:' + t ? 'Confirm' : 'Remove'}</button>
+                <button className="chip btn" style={armed === 'tag:' + t ? { background: 'var(--red)', color: '#fff', borderColor: 'var(--red)' } : {}} onClick={() => armed === 'tag:' + t ? removeTag(t) : setArmed('tag:' + t)}>{armed === 'tag:' + t ? 'Confirm' : 'Remove'}</button>
               </div>
             ))}
             <div className="row" style={{ marginTop: 10 }}><input className="grow" style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--line)' }} placeholder="New tag, e.g. Tax 2026" value={newTag} onChange={e => setNewTag(e.target.value)} /><button className="btn" onClick={addTag}>Add</button></div>
@@ -1928,8 +1953,8 @@
               {`Persistent storage: ${diag.persisted === null ? 'unknown' : diag.persisted ? 'granted' : 'not granted (export regularly)'}\n`}
               {`Installed as app: ${diag.standalone ? 'yes' : 'no'}${diag.mem ? '\n' + diag.mem : ''}`}
               {diag.errors.length > 0 && <div style={{ marginTop: 8 }}>
-                <div style={{ fontWeight: 700 }}>Recent errors ({diag.errors.length})</div>
-                {diag.errors.slice(0, 5).map((e, i) => <div key={i} style={{ marginTop: 4, fontFamily: 'monospace', fontSize: 11 }}>{e.t.slice(0, 16).replace('T', ' ')} [{e.where}] {e.msg}{e.mem ? ' (' + e.mem + ')' : ''}</div>)}
+                <div style={{ fontWeight: 600 }}>Recent errors ({diag.errors.length})</div>
+                {diag.errors.slice(0, 5).map((e, i) => <div key={i} style={{ marginTop: 4, fontFamily: 'monospace', fontSize: 12 }}>{e.t.slice(0, 16).replace('T', ' ')} [{e.where}] {e.msg}{e.mem ? ' (' + e.mem + ')' : ''}</div>)}
                 <div className="row" style={{ marginTop: 6 }}>
                   <button className="btn" onClick={() => { try { navigator.clipboard.writeText(JSON.stringify(diag.errors, null, 2)); } catch (_) {} }}>Copy errors</button>
                   <button className="btn" onClick={() => { localStorage.removeItem(ERR_KEY); runDiag(); }}>Clear</button>
@@ -2015,19 +2040,19 @@
       if (open) return <ReceiptDetail receipt={open} settings={settings} setSettings={setSettings} onClose={() => setOpen(null)} onChanged={onChanged} onDeleted={onDeleted} />;
       if (showSettings) return (
         <div className="sheet">
-          <div className="topbar"><button className="btn" onClick={() => setShowSettings(false)}>Back</button><h1 style={{ fontSize: 18 }}>Settings</h1><span style={{ width: 70 }} /></div>
+          <div className="topbar"><button className="btn" onClick={() => setShowSettings(false)}>Back</button><h1 style={{ fontSize: 20 }}>Settings</h1><span style={{ width: 70 }} /></div>
           <Settings settings={settings} setSettings={setSettings} receipts={receipts} reload={reload} onFindDuplicates={() => { setShowSettings(false); openDupReview(); }} dupCount={dupPairs.length} />
         </div>
       );
       return (
         <div className="app">
-          <div className="topbar"><h1>Receipts</h1><div className="row"><span className="small muted">{receipts.length} total</span>{!selecting && <button className="btn" style={{ padding: '8px 12px' }} onClick={() => setSelecting(true)}>Select</button>}<button className="btn" style={{ padding: '8px 12px' }} onClick={() => setShowSettings(true)} aria-label="Settings">⚙️</button></div></div>
+          <div className="topbar"><h1>Receipts <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-3)', letterSpacing: 0, verticalAlign: 'middle' }}>design</span></h1><div className="row"><span className="small muted">{receipts.length} total</span>{!selecting && <button className="btn" style={{ padding: '8px 16px' }} onClick={() => setSelecting(true)}>Select</button>}<button className="btn" style={{ padding: '0 16px', minWidth: 44 }} onClick={() => setShowSettings(true)} aria-label="Settings"><svg className="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           {selecting && (
-            <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 32, background: 'var(--card)', borderTop: '1px solid var(--line)', padding: '10px 12px calc(10px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 32, background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 16px calc(12px + var(--safe-b))', boxShadow: 'var(--shadow-float)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {bulk ? (
                 <>
                   <div className="row" style={{ justifyContent: 'space-between' }}><span>{bulk.finished ? 'AI analysed ' : 'AI analysing '}{bulk.done} of {bulk.total}{bulk.finished ? ', nothing saved yet' : ''}{bulk.errors.length ? `, ${bulk.errors.length} failed` : ''}</span>{!bulk.finished ? <button className="btn" onClick={() => { bulk.stop = true; }}>Stop</button> : (bulk.results && bulk.results.length ? <button className="btn primary" onClick={() => setReview({ items: bulk.results, i: 0 })}>Review {bulk.results.length}</button> : <button className="btn primary" onClick={() => { setBulk(null); setSelecting(false); setSelected(new Set()); }}>Close</button>)}</div>
-                  <div style={{ height: 6, background: 'var(--line)', borderRadius: 3 }}><div style={{ height: 6, width: `${bulk.total ? bulk.done / bulk.total * 100 : 0}%`, background: 'var(--navy)', borderRadius: 3, transition: 'width 0.3s' }} /></div>
+                  <div style={{ height: 6, background: 'var(--surface-3)', borderRadius: 3 }}><div style={{ height: 6, width: `${bulk.total ? bulk.done / bulk.total * 100 : 0}%`, background: 'var(--navy)', borderRadius: 3, transition: 'width 0.3s' }} /></div>
                   {bulk.errors.length > 0 && <div className="small muted" style={{ maxHeight: 60, overflow: 'auto' }}>{bulk.errors.join('\n')}</div>}
                 </>
               ) : (
@@ -2042,7 +2067,7 @@
           )}
           {loaded && dupPairs.length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{dupPairs.length} possible duplicate{dupPairs.length === 1 ? '' : 's'}</span><button className="chip btn" onClick={openDupReview}>Review</button></div>}
           {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={openReceipt} filter={filter} setFilter={setFilter} q={q} setQ={setQ} selecting={selecting} selected={selected} onSelectAll={selectAll} />}
-          {!selecting && <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt">+</button>}
+          {!selecting && <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt"><svg className="icon" style={{ width: 24, height: 24, strokeWidth: 2 }} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
         </div>
       );
     }

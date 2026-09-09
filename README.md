@@ -26,7 +26,7 @@ The project is a git repo pushed to `github.com/jules1342/receipts`. A GitHub Ac
 
     https://jules1342.github.io/receipts/
 
-To ship a change: edit `receipts.html`, bump `BUILD_VERSION`, build, then commit and push. `_build/deploy.cmd` does the build, commit and push in one go. The site updates about a minute after the push; the phone picks it up on the next open (the service worker fetches the page network-first).
+To ship a change: edit `receipts.html`, bump `BUILD_VERSION`, build, then commit and push. The design variant at `/receipts/design/` is regenerated with `python _build/make-design.py` then `node _build/build.js receipts-design.html app/design/index.html`. `_build/deploy.cmd` does the build, commit and push in one go. The site updates about a minute after the push; the phone picks it up on the next open (the service worker fetches the page network-first).
 
 ## Install on the phone
 Open the site in Chrome on Android, tap the menu, Add to Home screen, Install. It opens full screen and works offline. Allow the camera when asked.

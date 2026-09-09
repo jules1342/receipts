@@ -3,82 +3,106 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#1F3A5F">
+  <meta name="theme-color" content="#F7F7F8">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Receipts</title>
+  <title>Receipts design</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
+    /* Design system: neutral visual system, house default. Tokens first, nothing improvised below. */
     :root {
-      --bg: #F6F4EE; --card: #FFFFFF; --ink: #1B1F26; --muted: #6B7280; --line: #E4E1D8;
-      --navy: #1F3A5F; --navy-soft: #E6ECF5; --amber: #B7791F; --amber-soft: #FBF1DC;
-      --red: #B23A3A; --green: #2E7D4F; --green-soft: #E3F2E9; --radius: 14px;
+      color-scheme: light dark;
+      --surface: #FFFFFF; --surface-2: #F7F7F8; --surface-3: #EFEFF1;
+      --text: #1A1A1F; --text-2: #5C5C66; --text-3: #8A8A94;
+      --border: #E4E4E8; --border-strong: #D4D4DA;
+      --accent: #2563EB; --accent-tint: #EAF0FD; --accent-text: #1D4ED8; --on-accent: #FFFFFF;
+      --red: #DC2626; --red-tint: #FDECEC; --green: #16A34A; --green-tint: #E9F7EE; --amber: #B45309; --amber-tint: #FDF3E1;
+      --r-control: 8px; --r-card: 12px; --r-pill: 999px;
+      --shadow-float: 0 4px 12px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur: 200ms;
+      /* names the logic still uses */
+      --bg: var(--surface-2); --card: var(--surface); --ink: var(--text); --muted: var(--text-2); --line: var(--border);
+      --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
+        --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
+        --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
+        --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
+        --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+        --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+      }
+    }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 15px; line-height: 1.4; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    .app { min-height: 100vh; padding-bottom: calc(100px + var(--safe-b)); }
-    .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(10px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .topbar h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
-    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; padding: 6px 0 calc(6px + var(--safe-b)); }
-    .tabbar button { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .tabbar button.on { color: var(--navy); font-weight: 600; }
-    .tabbar .ico { font-size: 20px; line-height: 1; }
-    .fab { position: fixed; right: 18px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 62px; height: 62px; border-radius: 31px; background: var(--navy); color: #fff; border: none; font-size: 28px; box-shadow: 0 6px 18px rgba(31,58,95,0.35); display: flex; align-items: center; justify-content: center; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 12px 10px; }
-    .row { display: flex; align-items: center; gap: 10px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    .app { min-height: 100vh; padding-bottom: calc(96px + var(--safe-b)); max-width: 640px; margin: 0 auto; }
+    .sheet > * { max-width: 640px; margin-left: auto; margin-right: auto; }
+    .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(12px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .topbar h1 { font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .fab { position: fixed; right: 16px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 56px; height: 56px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); border: none; box-shadow: var(--shadow-float); display: flex; align-items: center; justify-content: center; transition: transform var(--dur) var(--ease-out); }
+    .fab:active { transform: scale(0.96); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px 16px; margin: 0 16px 8px; }
+    .row { display: flex; align-items: center; gap: 8px; }
     .grow { flex: 1; min-width: 0; }
-    .muted { color: var(--muted); }
-    .small { font-size: 12px; }
+    .muted { color: var(--text-2); }
+    .small { font-size: 14px; }
     .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 12px; background: var(--navy-soft); color: var(--navy); border: 1px solid transparent; white-space: nowrap; }
-    .chip.tag { background: var(--green-soft); color: var(--green); }
-    .chip.warn { background: var(--amber-soft); color: var(--amber); }
-    .chip.btn { background: var(--card); border-color: var(--line); color: var(--ink); }
-    .chip.btn.on { background: var(--navy); color: #fff; border-color: var(--navy); }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .thumb { width: 54px; height: 68px; object-fit: cover; border-radius: 8px; background: #eee; border: 1px solid var(--line); flex-shrink: 0; }
-    .btn { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 11px 16px; font-weight: 600; }
-    .btn.primary { background: var(--navy); color: #fff; border-color: var(--navy); }
-    .btn.danger { color: var(--red); border-color: #E7C9C9; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 20px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+    .chip .dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+    .chip.tag { background: var(--surface); color: var(--text-2); }
+    .chip.warn { background: var(--amber-tint); color: var(--amber); border-color: transparent; }
+    .chip.btn { background: var(--surface); border-color: var(--border); color: var(--text); min-height: 32px; padding: 4px 12px; transition: background var(--dur) var(--ease-out); }
+    .chip.btn.on { background: var(--accent-tint); color: var(--accent-text); border-color: var(--accent); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .thumb { width: 48px; height: 64px; object-fit: cover; border-radius: var(--r-control); background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
+    .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-control); padding: 10px 16px; min-height: 44px; font-weight: 600; font-size: 16px; transition: background var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out); }
+    .btn:active { background: var(--surface-2); }
+    .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .btn.danger { color: var(--red); border-color: var(--border-strong); }
     .btn.danger.armed { background: var(--red); color: #fff; border-color: var(--red); }
     .btn.wide { width: 100%; }
-    .btn:disabled { opacity: 0.45; }
-    .field { margin-bottom: 12px; }
-    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .field input, .field select, .field textarea { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 16px; }
-    .field textarea { min-height: 72px; resize: vertical; }
-    .field.unsure input, .field.unsure select { border-color: var(--amber); background: var(--amber-soft); }
-    .field.unsure { background: var(--amber-soft); margin-left: -8px; margin-right: -8px; padding: 6px 8px; border-radius: 10px; }
-    .unsure-note { font-size: 12px; color: var(--amber); margin-top: 4px; }
-    .section-h { padding: 14px 16px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; }
-    .empty { text-align: center; color: var(--muted); padding: 60px 24px; }
-    .search { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 15px; }
-    .filters { display: flex; gap: 6px; overflow-x: auto; padding: 4px 12px 8px; scrollbar-width: none; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 14px; color: var(--text-2); margin-bottom: 6px; font-weight: 600; }
+    .field label.row { display: flex; align-items: center; min-height: 44px; margin: 0; }
+    input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+    .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; min-height: 44px; border: 1px solid var(--border-strong); border-radius: var(--r-control); background: var(--surface); font-size: 16px; }
+    .field textarea { min-height: 88px; resize: vertical; }
+    .field.unsure input, .field.unsure select { border-color: var(--amber); }
+    .field.unsure { background: var(--amber-tint); margin-left: -8px; margin-right: -8px; padding: 8px 8px 4px; border-radius: var(--r-control); }
+    .unsure-note { font-size: 14px; color: var(--amber); margin-top: 4px; }
+    .section-h { padding: 16px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; align-items: center; }
+    .empty { text-align: center; color: var(--text-2); padding: 64px 24px; font-size: 16px; }
+    .search { width: 100%; padding: 10px 12px; min-height: 44px; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); font-size: 16px; }
+    .filters { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 8px; scrollbar-width: none; }
     .filters::-webkit-scrollbar { display: none; }
-    .flabel { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; align-self: center; min-width: 64px; flex-shrink: 0; }
+    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; align-self: center; min-width: 64px; flex-shrink: 0; }
     .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding-bottom: calc(24px + var(--safe-b)); }
     .sheet .topbar { background: var(--bg); }
     .pages { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
-    .pages img { height: 120px; border-radius: 8px; border: 1px solid var(--line); }
-    .pages .add { height: 120px; width: 90px; border-radius: 8px; border: 1px dashed var(--muted); background: none; color: var(--muted); font-size: 13px; }
-    .banner { margin: 0 12px 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
-    .banner.err { background: #FBE5E5; color: var(--red); }
-    .banner.ok { background: var(--green-soft); color: var(--green); }
-    .banner.info { background: var(--navy-soft); color: var(--navy); }
-    .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .spinner.dark { border-color: rgba(31,58,95,0.2); border-top-color: var(--navy); }
+    .pages img { height: 120px; border-radius: var(--r-control); border: 1px solid var(--border); }
+    .pages .add { height: 120px; width: 88px; border-radius: var(--r-control); border: 1px dashed var(--border-strong); background: none; color: var(--text-2); font-size: 14px; }
+    .banner { margin: 0 16px 8px; padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
+    .banner.err { background: var(--red-tint); color: var(--red); }
+    .banner.ok { background: var(--green-tint); color: var(--green); }
+    .banner.info { background: var(--accent-tint); color: var(--accent-text); }
+    .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner.dark { border-color: var(--border-strong); border-top-color: var(--accent); }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes focusPulse { 0% { transform: scale(1.3); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 14px; }
-    .kv .k { color: var(--muted); }
-    .total-line { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 112px 1fr; gap: 8px 12px; font-size: 14px; }
+    .kv .k { color: var(--text-2); }
+    .total-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; font-size: 14px; color: var(--text-2); }
     .crop-wrap { position: relative; touch-action: none; user-select: none; }
     .crop-wrap img { display: block; width: 100%; height: auto; }
     .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
@@ -86,10 +110,11 @@
     .handle { transform-origin: center; touch-action: none; }
     .handle.edge { width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 8px; background: rgba(255,255,255,0.1); }
     .handle.edge::after { width: 14px; height: 4px; margin: -2px 0 0 -7px; border-radius: 2px; }
-    .seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-    .seg button { flex: 1; border: none; background: var(--card); padding: 9px; font-size: 13px; }
-    .seg button.on { background: var(--navy); color: #fff; }
+    .seg { display: flex; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
+    .seg button { flex: 1; border: none; background: var(--surface); padding: 10px; min-height: 44px; font-size: 14px; }
+    .seg button.on { background: var(--accent); color: var(--on-accent); }
     .sync-dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; }
+    .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; display: block; }
   </style>
 </head>
 <body>
@@ -406,7 +431,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-09a-detail-separator';
+const BUILD_VERSION = '2026-09-09a-detail-separator-design';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -528,8 +553,8 @@ class ErrorBoundary extends React.Component {
       }
     }, React.createElement("div", {
       style: {
-        fontSize: 18,
-        fontWeight: 700,
+        fontSize: 20,
+        fontWeight: 600,
         marginBottom: 8
       }
     }, "Something went wrong"), React.createElement("div", {
@@ -551,7 +576,7 @@ class ErrorBoundary extends React.Component {
 }
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
-const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
+const CATEGORY_COLOURS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#0891B2', '#A16207', '#64748B'];
 const SKEY = 'receipts_settings';
 const loadSettings = () => {
   const base = {
@@ -2504,7 +2529,7 @@ function InAppCamera({
     }
   }, "Camera unavailable"), React.createElement("div", {
     style: {
-      fontSize: 13,
+      fontSize: 14,
       opacity: 0.85
     }
   }, err), React.createElement("label", {
@@ -2602,7 +2627,7 @@ function InAppCamera({
       bottom: 34,
       background: 'rgba(0,0,0,0.5)',
       color: '#fff',
-      borderRadius: 14,
+      borderRadius: 999,
       padding: '4px 10px',
       fontSize: 12,
       pointerEvents: 'none'
@@ -2616,7 +2641,7 @@ function InAppCamera({
       textAlign: 'center',
       color: '#fff',
       opacity: 0.6,
-      fontSize: 11,
+      fontSize: 12,
       pointerEvents: 'none'
     }
   }, zoomCaps ? 'Pinch to zoom' : 'Zoom not supported on this lens', canTapFocus ? ' · tap to focus' : '')), zoomCaps && React.createElement("div", {
@@ -2658,7 +2683,7 @@ function InAppCamera({
       background: 'transparent',
       color: '#fff',
       border: 'none',
-      fontSize: 15,
+      fontSize: 16,
       padding: '8px 0',
       textAlign: 'left'
     }
@@ -2705,7 +2730,7 @@ function InAppCamera({
       color: '#fff',
       border: 'none',
       borderRadius: 18,
-      padding: '8px 12px',
+      padding: '8px 16px',
       fontSize: 12
     }
   }, "Lens ", camIdx + 1, "/", cams.length), torch !== null && React.createElement("button", {
@@ -2715,7 +2740,7 @@ function InAppCamera({
       color: torch ? '#000' : '#fff',
       border: 'none',
       borderRadius: 18,
-      padding: '8px 12px',
+      padding: '8px 16px',
       fontSize: 12
     }
   }, "Light")))));
@@ -2987,7 +3012,7 @@ function CropEditor({
       background: 'none',
       border: 'none',
       color: '#fff',
-      fontSize: 15
+      fontSize: 16
     }
   }, "Retake"), React.createElement("div", {
     style: {
@@ -3010,7 +3035,7 @@ function CropEditor({
       background: 'none',
       border: 'none',
       color: '#fff',
-      fontSize: 13,
+      fontSize: 14,
       opacity: 0.8
     }
   }, "Auto"), React.createElement("button", {
@@ -3019,7 +3044,7 @@ function CropEditor({
       background: 'none',
       border: 'none',
       color: '#fff',
-      fontSize: 13,
+      fontSize: 14,
       opacity: 0.8
     }
   }, "Full"))), React.createElement(ZoomPane, {
@@ -3196,7 +3221,7 @@ function DupCard({
     className: "small muted",
     style: {
       marginBottom: 6,
-      fontWeight: 700,
+      fontWeight: 600,
       textTransform: 'uppercase',
       letterSpacing: '0.04em'
     }
@@ -3212,7 +3237,7 @@ function DupCard({
       maxHeight: 160,
       objectFit: 'contain',
       borderRadius: 8,
-      background: '#eee'
+      background: 'var(--surface-3)'
     }
   }), React.createElement("div", {
     className: "small muted",
@@ -3243,19 +3268,20 @@ function DupCard({
       marginTop: 4
     }
   }, r.category && React.createElement("span", {
-    className: "chip",
+    className: "chip"
+  }, React.createElement("span", {
+    className: "dot",
     style: {
-      background: col + '22',
-      color: col
+      background: col
     }
-  }, r.category), (r.tags || []).map(t => React.createElement("span", {
+  }), r.category), (r.tags || []).map(t => React.createElement("span", {
     key: t,
     className: "chip tag"
   }, "#", t)), (r.pages || []).length > 0 && React.createElement("span", {
     className: "chip",
     style: {
-      background: '#eee',
-      color: '#555'
+      background: 'var(--surface-3)',
+      color: 'var(--text-2)'
     }
   }, r.pages.length, " page", r.pages.length === 1 ? '' : 's')), r.comments && React.createElement("div", {
     className: "small muted",
@@ -3447,7 +3473,7 @@ function DuplicateReview({
     onClick: onClose
   }, "Close"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, "Possible duplicate", remaining > 1 ? ` (${remaining} left)` : ''), React.createElement("span", {
     style: {
@@ -3459,7 +3485,7 @@ function DuplicateReview({
     className: "row",
     style: {
       alignItems: 'stretch',
-      padding: '0 12px 12px',
+      padding: '0 16px 12px',
       gap: 8
     }
   }, React.createElement(DupCard, {
@@ -3482,7 +3508,7 @@ function DuplicateReview({
     busyAny: !!reading
   })), React.createElement("div", {
     style: {
-      padding: '0 12px',
+      padding: '0 16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 8
@@ -3686,7 +3712,7 @@ function BulkReview({
     onClick: onDone
   }, "Close"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, "AI re-analysis ", i + 1, " of ", items.length), React.createElement("span", {
     style: {
@@ -3715,18 +3741,18 @@ function BulkReview({
       display: 'grid',
       gridTemplateColumns: '84px 1fr 1fr',
       gap: '6px 8px',
-      fontSize: 13
+      fontSize: 14
     }
   }, React.createElement("span", null), React.createElement("span", {
     className: "small muted",
     style: {
-      fontWeight: 700,
+      fontWeight: 600,
       textTransform: 'uppercase'
     }
   }, "Now"), React.createElement("span", {
     className: "small muted",
     style: {
-      fontWeight: 700,
+      fontWeight: 600,
       textTransform: 'uppercase'
     }
   }, "AI read"), FIELDS.map(([k, label]) => {
@@ -3756,7 +3782,7 @@ function BulkReview({
     }, showVal(k, item.after[k], item.after.currency)));
   })))), React.createElement("div", {
     style: {
-      padding: '0 12px',
+      padding: '0 16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 8
@@ -3937,7 +3963,7 @@ function CaptureFlow({
     onClick: onCancel
   }, "Cancel"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, "New receipt"), React.createElement("span", {
     style: {
@@ -3945,7 +3971,7 @@ function CaptureFlow({
     }
   })), React.createElement("div", {
     style: {
-      padding: '8px 12px',
+      padding: '8px 16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 10
@@ -4073,7 +4099,7 @@ function CaptureFlow({
     onClick: () => setStage('camera')
   }, "+ Add page"))), React.createElement("div", {
     style: {
-      padding: '0 12px',
+      padding: '0 16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 10
@@ -4087,7 +4113,7 @@ function CaptureFlow({
     onClick: skipExtract
   }, "Enter details by hand")));
 }
-const var_red = () => '#B23A3A';
+const var_red = () => 'var(--red)';
 function DateField({
   value,
   onChange,
@@ -4140,11 +4166,24 @@ function DateField({
     type: "button",
     className: "btn",
     style: {
-      padding: '10px 12px'
+      padding: '0 16px',
+      minWidth: 44
     },
     onClick: openPicker,
     "aria-label": "Pick a date"
-  }, "📅"), React.createElement("input", {
+  }, React.createElement("svg", {
+    className: "icon",
+    viewBox: "0 0 24 24",
+    "aria-hidden": "true"
+  }, React.createElement("rect", {
+    x: "3",
+    y: "4",
+    width: "18",
+    height: "18",
+    rx: "2"
+  }), React.createElement("path", {
+    d: "M16 2v4M8 2v4M3 10h18"
+  }))), React.createElement("input", {
     ref: pickRef,
     type: "date",
     value: value || '',
@@ -4203,7 +4242,7 @@ function ChipPicker({
       borderRadius: 999,
       border: '1px solid var(--line)',
       width: 130,
-      fontSize: 13
+      fontSize: 14
     },
     value: txt,
     onChange: e => setTxt(e.target.value),
@@ -4293,7 +4332,7 @@ function ReceiptForm({
     onClick: onCancel
   }, "Back"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, title), React.createElement("button", {
     className: "btn primary",
@@ -4327,7 +4366,7 @@ function ReceiptForm({
       width: 24,
       height: 24,
       borderRadius: 12,
-      background: '#B23A3A',
+      background: 'var(--red)',
       color: '#fff',
       border: 'none',
       fontSize: 14,
@@ -4386,8 +4425,8 @@ function ReceiptForm({
       justifyContent: 'space-between',
       textTransform: 'none',
       letterSpacing: 0,
-      fontSize: 15,
-      fontWeight: 500,
+      fontSize: 16,
+      fontWeight: 400,
       color: 'var(--ink)',
       cursor: 'pointer'
     }
@@ -4460,7 +4499,7 @@ function ReceiptForm({
     }
   }))), onDelete && React.createElement("div", {
     style: {
-      padding: '0 12px 20px'
+      padding: '0 16px 20px'
     }
   }, React.createElement("button", {
     className: 'btn wide danger' + (armed ? ' armed' : ''),
@@ -4496,14 +4535,14 @@ function ImageViewer({
       background: 'none',
       border: 'none',
       color: '#fff',
-      fontSize: 15
+      fontSize: 16
     }
   }, "Close"), React.createElement("span", null, i + 1, " / ", urls.length), React.createElement("a", {
     href: urls[i],
     download: names && names[i] || `receipt-page-${i + 1}.jpg`,
     style: {
       color: '#fff',
-      fontSize: 13
+      fontSize: 14
     }
   }, "Save")), React.createElement(ZoomPane, {
     key: i,
@@ -4719,7 +4758,7 @@ function ReceiptDetail({
     onClick: onClose
   }, "Back"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, "Receipt"), React.createElement("button", {
     className: "btn",
@@ -4743,18 +4782,19 @@ function ReceiptDetail({
   }, React.createElement("div", {
     style: {
       fontSize: 20,
-      fontWeight: 700,
+      fontWeight: 600,
       lineHeight: 1.25
     }
   }, receipt.items || receipt.merchant || 'Receipt'), React.createElement("div", {
     className: "muted",
     style: {
-      marginTop: 2
+      marginTop: 2,
+      fontSize: 14
     }
   }, [receipt.items ? receipt.merchant || 'Unknown merchant' : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · '))), React.createElement("div", {
     style: {
       fontSize: 24,
-      fontWeight: 700,
+      fontWeight: 600,
       whiteSpace: 'nowrap'
     },
     className: "amt"
@@ -4764,12 +4804,13 @@ function ReceiptDetail({
       marginTop: 10
     }
   }, receipt.category && React.createElement("span", {
-    className: "chip",
+    className: "chip"
+  }, React.createElement("span", {
+    className: "dot",
     style: {
-      background: col + '22',
-      color: col
+      background: col
     }
-  }, receipt.category), (receipt.tags || []).map(t => React.createElement("span", {
+  }), receipt.category), (receipt.tags || []).map(t => React.createElement("span", {
     key: t,
     className: "chip tag"
   }, "#", t))), React.createElement("div", {
@@ -4818,7 +4859,7 @@ function ReceiptDetail({
     onClick: () => setAdding(true)
   }, "+ Add page"))), React.createElement("div", {
     style: {
-      padding: '0 12px',
+      padding: '0 16px',
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
       gap: 10
@@ -4913,10 +4954,10 @@ function ReceiptRow({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: 10,
-      color: 'var(--muted)'
+      fontSize: 12,
+      color: 'var(--text-3)'
     }
-  }, "no image"), React.createElement("div", {
+  }, "none"), React.createElement("div", {
     className: "grow"
   }, React.createElement("div", {
     className: "row",
@@ -4927,7 +4968,8 @@ function ReceiptRow({
   }, React.createElement("div", {
     style: {
       fontWeight: 600,
-      lineHeight: 1.25
+      fontSize: 16,
+      lineHeight: 1.3
     }
   }, r.items || r.merchant || 'Receipt'), React.createElement("div", {
     className: "amt",
@@ -4942,12 +4984,13 @@ function ReceiptRow({
       marginTop: 5
     }
   }, r.category && React.createElement("span", {
-    className: "chip",
+    className: "chip"
+  }, React.createElement("span", {
+    className: "dot",
     style: {
-      background: col + '22',
-      color: col
+      background: col
     }
-  }, r.category), (r.tags || []).map(t => React.createElement("span", {
+  }), r.category), (r.tags || []).map(t => React.createElement("span", {
     key: t,
     className: "chip tag"
   }, "#", t)), r.needsReview && React.createElement("span", {
@@ -4955,8 +4998,8 @@ function ReceiptRow({
   }, "Check"), (r.pages || []).length > 1 && React.createElement("span", {
     className: "chip",
     style: {
-      background: '#eee',
-      color: '#555'
+      background: 'var(--surface-3)',
+      color: 'var(--text-2)'
     }
   }, r.pages.length, " pages"))));
 }
@@ -5034,7 +5077,7 @@ function ReceiptList({
   return React.createElement(React.Fragment, null, React.createElement("div", {
     className: "row",
     style: {
-      padding: '0 12px 8px',
+      padding: '0 16px 8px',
       gap: 8
     }
   }, React.createElement("input", {
@@ -5541,19 +5584,20 @@ function Settings({
       borderBottom: '1px solid var(--line)'
     }
   }, React.createElement("span", {
-    className: "chip",
+    className: "chip"
+  }, React.createElement("span", {
+    className: "dot",
     style: {
-      background: catColour(c, settings.categories) + '22',
-      color: catColour(c, settings.categories)
+      background: catColour(c, settings.categories)
     }
-  }, c), React.createElement("span", {
+  }), c), React.createElement("span", {
     className: "grow small muted"
   }, receipts.filter(r => r.category === c).length, " receipts"), React.createElement("button", {
     className: "chip btn",
     style: armed === c ? {
-      background: '#B23A3A',
+      background: 'var(--red)',
       color: '#fff',
-      borderColor: '#B23A3A'
+      borderColor: 'var(--red)'
     } : {},
     onClick: () => armed === c ? removeCat(c) : setArmed(c)
   }, armed === c ? 'Confirm' : 'Remove'))), React.createElement("div", {
@@ -5592,9 +5636,9 @@ function Settings({
   }, receipts.filter(r => (r.tags || []).includes(t)).length, " receipts"), React.createElement("button", {
     className: "chip btn",
     style: armed === 'tag:' + t ? {
-      background: '#B23A3A',
+      background: 'var(--red)',
       color: '#fff',
-      borderColor: '#B23A3A'
+      borderColor: 'var(--red)'
     } : {},
     onClick: () => armed === 'tag:' + t ? removeTag(t) : setArmed('tag:' + t)
   }, armed === 'tag:' + t ? 'Confirm' : 'Remove'))), React.createElement("div", {
@@ -5785,14 +5829,14 @@ function Settings({
     }
   }, React.createElement("div", {
     style: {
-      fontWeight: 700
+      fontWeight: 600
     }
   }, "Recent errors (", diag.errors.length, ")"), diag.errors.slice(0, 5).map((e, i) => React.createElement("div", {
     key: i,
     style: {
       marginTop: 4,
       fontFamily: 'monospace',
-      fontSize: 11
+      fontSize: 12
     }
   }, e.t.slice(0, 16).replace('T', ' '), " [", e.where, "] ", e.msg, e.mem ? ' (' + e.mem + ')' : '')), React.createElement("div", {
     className: "row",
@@ -6035,7 +6079,7 @@ function App() {
     onClick: () => setShowSettings(false)
   }, "Back"), React.createElement("h1", {
     style: {
-      fontSize: 18
+      fontSize: 20
     }
   }, "Settings"), React.createElement("span", {
     style: {
@@ -6056,33 +6100,53 @@ function App() {
     className: "app"
   }, React.createElement("div", {
     className: "topbar"
-  }, React.createElement("h1", null, "Receipts"), React.createElement("div", {
+  }, React.createElement("h1", null, "Receipts ", React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 400,
+      color: 'var(--text-3)',
+      letterSpacing: 0,
+      verticalAlign: 'middle'
+    }
+  }, "design")), React.createElement("div", {
     className: "row"
   }, React.createElement("span", {
     className: "small muted"
   }, receipts.length, " total"), !selecting && React.createElement("button", {
     className: "btn",
     style: {
-      padding: '8px 12px'
+      padding: '8px 16px'
     },
     onClick: () => setSelecting(true)
   }, "Select"), React.createElement("button", {
     className: "btn",
     style: {
-      padding: '8px 12px'
+      padding: '0 16px',
+      minWidth: 44
     },
     onClick: () => setShowSettings(true),
     "aria-label": "Settings"
-  }, "⚙️"))), selecting && React.createElement("div", {
+  }, React.createElement("svg", {
+    className: "icon",
+    viewBox: "0 0 24 24",
+    "aria-hidden": "true"
+  }, React.createElement("path", {
+    d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+  }), React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "3"
+  }))))), selecting && React.createElement("div", {
     style: {
       position: 'fixed',
       left: 0,
       right: 0,
       bottom: 0,
       zIndex: 32,
-      background: 'var(--card)',
-      borderTop: '1px solid var(--line)',
-      padding: '10px 12px calc(10px + var(--safe-b))',
+      background: 'var(--surface)',
+      borderTop: '1px solid var(--border)',
+      padding: '12px 16px calc(12px + var(--safe-b))',
+      boxShadow: 'var(--shadow-float)',
       display: 'flex',
       flexDirection: 'column',
       gap: 8
@@ -6113,7 +6177,7 @@ function App() {
   }, "Close")), React.createElement("div", {
     style: {
       height: 6,
-      background: 'var(--line)',
+      background: 'var(--surface-3)',
       borderRadius: 3
     }
   }, React.createElement("div", {
@@ -6177,7 +6241,18 @@ function App() {
     className: "fab",
     onClick: () => setCapturing(true),
     "aria-label": "Add receipt"
-  }, "+"));
+  }, React.createElement("svg", {
+    className: "icon",
+    style: {
+      width: 24,
+      height: 24,
+      strokeWidth: 2
+    },
+    viewBox: "0 0 24 24",
+    "aria-hidden": "true"
+  }, React.createElement("path", {
+    d: "M12 5v14M5 12h14"
+  }))));
 }
 window.__receipts = {
   makeZip,

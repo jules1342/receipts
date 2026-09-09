@@ -5,8 +5,10 @@ const babel = require('@babel/core');
 // Paths resolve from this script. Layout: Receipts/receipts.html, Receipts/_build/, Receipts/app/.
 const BUILD_DIR = __dirname;
 const PROJECT = path.join(BUILD_DIR, '..');
-const SRC = path.join(PROJECT, 'receipts.html');
-const OUT = path.join(PROJECT, 'app', 'index.html');
+// Optional args: source html and output html, for variant builds (the design copy builds into app/design/).
+const SRC = process.argv[2] ? path.resolve(process.argv[2]) : path.join(PROJECT, 'receipts.html');
+const OUT = process.argv[3] ? path.resolve(process.argv[3]) : path.join(PROJECT, 'app', 'index.html');
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 
 let html = fs.readFileSync(SRC, 'utf8');
 const react = fs.readFileSync(path.join(BUILD_DIR, 'vendor', 'react.js'), 'utf8');
