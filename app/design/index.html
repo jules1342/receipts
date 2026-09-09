@@ -3,81 +3,80 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#F7F7F8">
+  <meta name="theme-color" content="#F4EFE4">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Receipts design</title>
+  <title>Receipts ledger</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
-    /* Design system: neutral visual system, house default. Tokens first, nothing improvised below. */
+    /* Ledger design system. Tokens first; nothing below is improvised. */
     :root {
-      color-scheme: light dark;
-      --surface: #FFFFFF; --surface-2: #F7F7F8; --surface-3: #EFEFF1;
-      --text: #1A1A1F; --text-2: #5C5C66; --text-3: #8A8A94;
-      --border: #E4E4E8; --border-strong: #D4D4DA;
-      --accent: #2563EB; --accent-tint: #EAF0FD; --accent-text: #1D4ED8; --on-accent: #FFFFFF;
-      --red: #DC2626; --red-tint: #FDECEC; --green: #16A34A; --green-tint: #E9F7EE; --amber: #B45309; --amber-tint: #FDF3E1;
-      --r-control: 8px; --r-card: 12px; --r-pill: 999px;
-      --shadow-float: 0 4px 12px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      color-scheme: light;
+      --sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+      --surface: #FFFDF9; --surface-2: #F4EFE4; --surface-3: #EBE5D8;
+      --text: #211D17; --text-2: #5F5849; --text-3: #6F6859;
+      --border: rgba(33,29,23,0.14); --border-strong: rgba(33,29,23,0.28);
+      --accent: #1F6B4A; --accent-tint: #E3EFE7; --accent-text: #185A3E; --on-accent: #FFFFFF;
+      --red: #B42318; --red-tint: #FCEBE9; --green: #1F6B4A; --green-tint: #E3EFE7; --amber: #8A5200; --amber-tint: #FBF0DC;
+      --r-control: 6px; --r-card: 8px; --r-pill: 999px;
+      --shadow-float: 0 4px 12px rgba(33,29,23,0.12), 0 1px 2px rgba(33,29,23,0.08);
       --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur: 200ms;
-      /* names the logic still uses */
       --bg: var(--surface-2); --card: var(--surface); --ink: var(--text); --muted: var(--text-2); --line: var(--border);
       --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
-    :root[data-theme="light"] { color-scheme: light; }
-    :root[data-theme="dark"], :root:not([data-theme="light"]) .dark-tokens { color-scheme: dark; }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
-        --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
-        --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
-        --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
-        --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
-        --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
-      }
-    }
-    :root[data-theme="dark"] {
-      --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
-      --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
-      --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
-      --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
-      --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
+      --surface: #1D1B17; --surface-2: #14130F; --surface-3: #29261F;
+      --text: #F1ECE1; --text-2: #B3AC9E; --text-3: #948C7D;
+      --border: rgba(255,250,240,0.12); --border-strong: rgba(255,250,240,0.24);
+      --accent: #6FBF95; --accent-tint: #1C3428; --accent-text: #9BD7B7; --on-accent: #0E1A13;
+      --red: #F08A80; --red-tint: #3A1F1C; --green: #6FBF95; --green-tint: #1C3428; --amber: #E8B85C; --amber-tint: #3A2F14;
+      --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+    } }
+    :root[data-theme="dark"] { color-scheme: dark;
+      --surface: #1D1B17; --surface-2: #14130F; --surface-3: #29261F;
+      --text: #F1ECE1; --text-2: #B3AC9E; --text-3: #948C7D;
+      --border: rgba(255,250,240,0.12); --border-strong: rgba(255,250,240,0.24);
+      --accent: #6FBF95; --accent-tint: #1C3428; --accent-text: #9BD7B7; --on-accent: #0E1A13;
+      --red: #F08A80; --red-tint: #3A1F1C; --green: #6FBF95; --green-tint: #1C3428; --amber: #E8B85C; --amber-tint: #3A2F14;
       --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.5; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
     .app { min-height: 100vh; padding-bottom: calc(96px + var(--safe-b)); max-width: 640px; margin: 0 auto; }
     .sheet > * { max-width: 640px; margin-left: auto; margin-right: auto; }
     .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(12px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .topbar h1 { font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .topbar h1 { font-family: var(--serif); font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+    .serif { font-family: var(--serif); }
     .fab { position: fixed; right: 16px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 56px; height: 56px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); border: none; box-shadow: var(--shadow-float); display: flex; align-items: center; justify-content: center; transition: transform var(--dur) var(--ease-out); }
     .fab:active { transform: scale(0.96); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px 16px; margin: 0 16px 8px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px; margin: 0 16px 16px; }
     .row { display: flex; align-items: center; gap: 8px; }
     .grow { flex: 1; min-width: 0; }
     .muted { color: var(--text-2); }
     .small { font-size: 14px; }
-    .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 20px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+    .amt { font-family: var(--serif); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.01em; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 24px; border-radius: var(--r-pill); font-size: 12px; line-height: 1; background: transparent; color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
     .chip .dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
-    .chip.tag { background: var(--surface); color: var(--text-2); }
+    .chip.tag { color: var(--text-2); }
     .chip.warn { background: var(--amber-tint); color: var(--amber); border-color: transparent; }
-    .chip.btn { background: var(--surface); border-color: var(--border); color: var(--text); min-height: 32px; padding: 4px 12px; transition: background var(--dur) var(--ease-out); }
+    .chip.btn { background: var(--surface); border-color: var(--border-strong); color: var(--text); min-height: 44px; padding: 0 14px; font-size: 14px; transition: background var(--dur) var(--ease-out); }
     .chip.btn.on { background: var(--accent-tint); color: var(--accent-text); border-color: var(--accent); }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .thumb { width: 48px; height: 64px; object-fit: cover; border-radius: var(--r-control); background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
+    .thumb { width: 44px; height: 56px; object-fit: cover; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
     .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-control); padding: 10px 16px; min-height: 44px; font-weight: 600; font-size: 16px; transition: background var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out); }
     .btn:active { background: var(--surface-2); }
     .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .btn.quiet { background: transparent; border-color: transparent; color: var(--accent-text); padding: 10px 12px; }
     .btn.danger { color: var(--red); border-color: var(--border-strong); }
     .btn.danger.armed { background: var(--red); color: #fff; border-color: var(--red); }
     .btn.wide { width: 100%; }
@@ -91,18 +90,19 @@
     .field.unsure input, .field.unsure select { border-color: var(--amber); }
     .field.unsure { background: var(--amber-tint); margin-left: -8px; margin-right: -8px; padding: 8px 8px 4px; border-radius: var(--r-control); }
     .unsure-note { font-size: 14px; color: var(--amber); margin-top: 4px; }
-    .section-h { padding: 16px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; align-items: center; }
+    .section-h { padding: 24px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: center; }
+    .section-h .amt { font-size: 14px; color: var(--text-2); }
     .empty { text-align: center; color: var(--text-2); padding: 64px 24px; font-size: 16px; }
     .search { width: 100%; padding: 10px 12px; min-height: 44px; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); font-size: 16px; }
     .filters { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 8px; scrollbar-width: none; }
     .filters::-webkit-scrollbar { display: none; }
-    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; align-self: center; min-width: 64px; flex-shrink: 0; }
+    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; align-self: center; min-width: 64px; flex-shrink: 0; }
     .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding-bottom: calc(24px + var(--safe-b)); }
     .sheet .topbar { background: var(--bg); }
     .pages { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
-    .pages img { height: 120px; border-radius: var(--r-control); border: 1px solid var(--border); }
+    .pages img { height: 120px; border-radius: 4px; border: 1px solid var(--border); }
     .pages .add { height: 120px; width: 88px; border-radius: var(--r-control); border: 1px dashed var(--border-strong); background: none; color: var(--text-2); font-size: 14px; }
-    .banner { margin: 0 16px 8px; padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
+    .banner { margin: 0 16px 16px; padding: 12px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
     .banner.err { background: var(--red-tint); color: var(--red); }
     .banner.ok { background: var(--green-tint); color: var(--green); }
     .banner.info { background: var(--accent-tint); color: var(--accent-text); }
@@ -110,9 +110,23 @@
     .spinner.dark { border-color: var(--border-strong); border-top-color: var(--accent); }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes focusPulse { 0% { transform: scale(1.3); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .kv { display: grid; grid-template-columns: 112px 1fr; gap: 8px 12px; font-size: 14px; }
-    .kv .k { color: var(--text-2); }
+    .facts { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text-2); margin-top: 12px; }
+    .facts .mono { font-variant-numeric: tabular-nums; color: var(--text); }
     .total-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; font-size: 14px; color: var(--text-2); }
+    .ledger { margin: 0 16px; border-top: 1px solid var(--border); }
+    .lrow { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .lrow.sel { background: var(--accent-tint); margin: 0 -16px; padding: 12px 16px; }
+    .lrow .title { font-size: 16px; font-weight: 600; line-height: 1.3; }
+    .lrow .sub { font-size: 14px; color: var(--text-2); margin-top: 2px; }
+    .lrow .amt { font-size: 20px; white-space: nowrap; }
+    .month { display: flex; justify-content: space-between; align-items: baseline; padding: 24px 16px 8px; }
+    .month .name { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+    .month .sum { font-size: 14px; color: var(--text-2); }
+    .summary { margin: 8px 16px 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+    .summary .label { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .summary .big { font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .summary .meta { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(96px + var(--safe-b)); z-index: 80; background: var(--text); color: var(--surface); padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; box-shadow: var(--shadow-float); max-width: 608px; margin: 0 auto; }
     .crop-wrap { position: relative; touch-action: none; user-select: none; }
     .crop-wrap img { display: block; width: 100%; height: auto; }
     .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
@@ -441,7 +455,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-09b-demo-mode-design';
+const BUILD_VERSION = '2026-09-09b-demo-mode-ledger';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -539,6 +553,26 @@ function useBack(open, onBack) {
     };
   }, [open]);
 }
+const showToast = msg => {
+  try {
+    let el = document.getElementById('toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toast';
+      el.className = 'toast';
+      el.setAttribute('role', 'status');
+      document.body.appendChild(el);
+    }
+    el.textContent = String(msg);
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => {
+      el.hidden = true;
+    }, 5000);
+  } catch (_) {
+    window.alert(msg);
+  }
+};
 class ErrorBoundary extends React.Component {
   constructor(p) {
     super(p);
@@ -586,7 +620,7 @@ class ErrorBoundary extends React.Component {
 }
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
-const CATEGORY_COLOURS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#0891B2', '#A16207', '#64748B'];
+const CATEGORY_COLOURS = ['#1F6B4A', '#2F5FA8', '#B86A00', '#7A3E9D', '#B42318', '#0F7A8A', '#8A6D2B', '#5B6470'];
 const DEMO = /[?&]demo\b/.test(location.search);
 const SKEY = DEMO ? 'receipts_settings_demo' : 'receipts_settings';
 const HAS_DARK = true;
@@ -2642,7 +2676,7 @@ function InAppCamera({
       bottom: 34,
       background: 'rgba(0,0,0,0.5)',
       color: '#fff',
-      borderRadius: 999,
+      borderRadius: 14,
       padding: '4px 10px',
       fontSize: 12,
       pointerEvents: 'none'
@@ -2895,7 +2929,7 @@ function CropEditor({
         });
       } catch (e) {
         logError('crop', e);
-        alert('Could not process that photo: ' + e.message);
+        showToast('Could not process that photo: ' + e.message);
       } finally {
         setBusy(false);
       }
@@ -2951,6 +2985,7 @@ function CropEditor({
     }
   }, React.createElement("img", {
     src: enhance ? result.enhancedUrl : result.colourUrl,
+    alt: "Cleaned page",
     draggable: false,
     style: {
       maxWidth: '100%',
@@ -3089,6 +3124,7 @@ function CropEditor({
   }, React.createElement("img", {
     ref: imgRef,
     src: preview,
+    alt: "Photo to crop",
     draggable: false,
     style: {
       width: '100%',
@@ -3247,6 +3283,7 @@ function DupCard({
     }
   }, React.createElement("img", {
     src: r.thumb,
+    alt: "",
     style: {
       width: '100%',
       maxHeight: 160,
@@ -3376,7 +3413,7 @@ function DuplicateReview({
         total: undefined
       });
     } catch (e) {
-      alert(extractErrMsg(e));
+      showToast(extractErrMsg(e));
     }
     readingRef.current = null;
     setReading(null);
@@ -3436,7 +3473,7 @@ function DuplicateReview({
     try {
       await fn();
     } catch (e) {
-      alert(e.message);
+      showToast(e.message);
       logError('duplicates', e);
     }
     setBusy(false);
@@ -3500,7 +3537,7 @@ function DuplicateReview({
     className: "row",
     style: {
       alignItems: 'stretch',
-      padding: '0 16px 12px',
+      padding: '0 16px 16px',
       gap: 8
     }
   }, React.createElement(DupCard, {
@@ -3649,7 +3686,7 @@ function BulkReview({
     try {
       await fn();
     } catch (e) {
-      alert(e.message);
+      showToast(e.message);
     }
     setBusy(false);
     next();
@@ -3745,6 +3782,7 @@ function BulkReview({
     }
   }, item.before.thumb && React.createElement("img", {
     src: item.before.thumb,
+    alt: "",
     className: "thumb",
     style: {
       width: 70,
@@ -4248,7 +4286,8 @@ function CaptureFlow({
       position: 'relative'
     }
   }, React.createElement("img", {
-    src: p.url
+    src: p.url,
+    alt: "Receipt page"
   }), React.createElement("div", {
     className: "small",
     style: {
@@ -4485,7 +4524,7 @@ function ReceiptForm({
       await onSave(out);
     } catch (e) {
       setSaving(false);
-      alert('Save failed: ' + e.message);
+      showToast('Save failed: ' + e.message);
     }
   };
   useEffect(() => {
@@ -4531,7 +4570,8 @@ function ReceiptForm({
       position: 'relative'
     }
   }, React.createElement("img", {
-    src: p.url
+    src: p.url,
+    alt: "Receipt page"
   }), onRemovePage && React.createElement("button", {
     onClick: () => onRemovePage(p.id),
     style: {
@@ -4566,23 +4606,15 @@ function ReceiptForm({
     placeholder: "e.g. JB Hi-Fi"
   }), React.createElement(Note, {
     k: "merchant"
-  })), React.createElement("div", {
-    className: "row",
-    style: {
-      alignItems: 'flex-start'
-    }
-  }, React.createElement("div", {
-    className: 'field grow' + (unsure('date') ? ' unsure' : '')
+  })), React.createElement("div", null, React.createElement("div", {
+    className: 'field' + (unsure('date') ? ' unsure' : '')
   }, React.createElement("label", null, "Date"), React.createElement(DateField, {
     value: r.date,
     onChange: v => set('date', v)
   }), React.createElement(Note, {
     k: "date"
   })), React.createElement("div", {
-    className: 'field' + (unsure('total') ? ' unsure' : ''),
-    style: {
-      width: 130
-    }
+    className: 'field' + (unsure('total') ? ' unsure' : '')
   }, React.createElement("label", null, "Total (", r.currency, ")"), React.createElement("input", {
     type: "number",
     inputMode: "decimal",
@@ -4634,10 +4666,8 @@ function ReceiptForm({
     onChange: v => set('tags', v),
     onAdd: addTag,
     addLabel: "New tag"
-  })), React.createElement("div", {
-    className: "row"
-  }, React.createElement("div", {
-    className: "field grow"
+  })), React.createElement("div", null, React.createElement("div", {
+    className: "field"
   }, React.createElement("label", null, "Receipt or invoice no."), React.createElement("input", {
     value: r.receiptNo || '',
     onChange: e => set('receiptNo', e.target.value),
@@ -4674,7 +4704,7 @@ function ReceiptForm({
     }
   }))), onDelete && React.createElement("div", {
     style: {
-      padding: '0 16px 20px'
+      padding: '0 16px 24px'
     }
   }, React.createElement("button", {
     className: 'btn wide danger' + (armed ? ' armed' : ''),
@@ -4735,6 +4765,7 @@ function ImageViewer({
     }
   }, React.createElement("img", {
     src: urls[i],
+    alt: `Receipt page ${i + 1}`,
     draggable: false,
     style: {
       maxWidth: '100%',
@@ -4955,21 +4986,20 @@ function ReceiptDetail({
   }, React.createElement("div", {
     className: "grow"
   }, React.createElement("div", {
+    className: "serif",
     style: {
-      fontSize: 20,
+      fontSize: 24,
       fontWeight: 600,
-      lineHeight: 1.25
+      lineHeight: 1.2
     }
   }, receipt.items || receipt.merchant || 'Receipt'), React.createElement("div", {
     className: "muted",
     style: {
-      marginTop: 2,
-      fontSize: 14
+      marginTop: 2
     }
   }, [receipt.items ? receipt.merchant || 'Unknown merchant' : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · '))), React.createElement("div", {
     style: {
       fontSize: 24,
-      fontWeight: 600,
       whiteSpace: 'nowrap'
     },
     className: "amt"
@@ -4989,33 +5019,17 @@ function ReceiptDetail({
     key: t,
     className: "chip tag"
   }, "#", t))), React.createElement("div", {
-    className: "kv",
+    className: "facts"
+  }, React.createElement("div", null, receipt.gstIncluded ? `Includes ${fmtMoney(gstOf(receipt.total), receipt.currency)} GST` : 'No GST'), receipt.receiptNo && React.createElement("div", null, "Receipt no. ", React.createElement("span", {
+    className: "mono"
+  }, receipt.receiptNo)), receipt.accountNo && React.createElement("div", null, "Account ", React.createElement("span", {
+    className: "mono"
+  }, receipt.accountNo)), receipt.comments && React.createElement("div", {
     style: {
-      marginTop: 12
+      whiteSpace: 'pre-wrap',
+      color: 'var(--text)'
     }
-  }, React.createElement("span", {
-    className: "k"
-  }, "GST"), React.createElement("span", null, receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'), receipt.receiptNo && React.createElement(React.Fragment, null, React.createElement("span", {
-    className: "k"
-  }, "Receipt no."), React.createElement("span", {
-    style: {
-      fontFamily: 'monospace'
-    }
-  }, receipt.receiptNo)), receipt.accountNo && React.createElement(React.Fragment, null, React.createElement("span", {
-    className: "k"
-  }, "Account no."), React.createElement("span", {
-    style: {
-      fontFamily: 'monospace'
-    }
-  }, receipt.accountNo)), receipt.comments && React.createElement(React.Fragment, null, React.createElement("span", {
-    className: "k"
-  }, "Comments"), React.createElement("span", {
-    style: {
-      whiteSpace: 'pre-wrap'
-    }
-  }, receipt.comments)), React.createElement("span", {
-    className: "k"
-  }, "Added"), React.createElement("span", null, fmtDate((receipt.createdAt || '').slice(0, 10))))), readErr && React.createElement("div", {
+  }, receipt.comments), React.createElement("div", null, "Added ", fmtDate((receipt.createdAt || '').slice(0, 10))))), readErr && React.createElement("div", {
     className: "banner err",
     onClick: () => setReadErr(null)
   }, readErr), React.createElement("div", {
@@ -5042,6 +5056,7 @@ function ReceiptDetail({
   }, pages.map((p, i) => React.createElement("img", {
     key: p.id,
     src: p.url,
+    alt: `Receipt page ${i + 1}`,
     onClick: () => setViewer(i),
     style: {
       width: '100%',
@@ -5098,22 +5113,28 @@ function ReceiptRow({
   selected
 }) {
   const col = catColour(r.category, cats);
+  const sub = [r.items ? r.merchant || 'Unknown merchant' : '', fmtDate(r.date)].filter(Boolean).join(' · ');
   return React.createElement("div", {
-    className: "card row",
+    className: 'lrow' + (selected ? ' sel' : ''),
     onClick: onOpen,
-    style: {
-      cursor: 'pointer',
-      borderColor: selected ? 'var(--navy)' : undefined,
-      background: selected ? 'var(--navy-soft)' : undefined
+    role: "button",
+    tabIndex: 0,
+    onKeyDown: e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onOpen();
+      }
     }
   }, selectable && React.createElement("div", {
+    "aria-hidden": "true",
     style: {
       width: 24,
       height: 24,
+      marginTop: 16,
       borderRadius: 12,
-      border: '2px solid ' + (selected ? 'var(--navy)' : 'var(--line)'),
-      background: selected ? 'var(--navy)' : '#fff',
-      color: '#fff',
+      border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--border-strong)'),
+      background: selected ? 'var(--accent)' : 'transparent',
+      color: 'var(--on-accent)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -5122,41 +5143,30 @@ function ReceiptRow({
     }
   }, selected ? '✓' : ''), r.thumb ? React.createElement("img", {
     className: "thumb",
-    src: r.thumb
+    src: r.thumb,
+    alt: ""
   }) : React.createElement("div", {
     className: "thumb",
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 12,
-      color: 'var(--text-3)'
-    }
-  }, "none"), React.createElement("div", {
+    "aria-hidden": "true"
+  }), React.createElement("div", {
     className: "grow"
   }, React.createElement("div", {
     className: "row",
     style: {
       justifyContent: 'space-between',
-      alignItems: 'flex-start'
+      alignItems: 'flex-start',
+      gap: 12
     }
   }, React.createElement("div", {
-    style: {
-      fontWeight: 600,
-      fontSize: 16,
-      lineHeight: 1.3
-    }
+    className: "title"
   }, r.items || r.merchant || 'Receipt'), React.createElement("div", {
-    className: "amt",
-    style: {
-      whiteSpace: 'nowrap'
-    }
+    className: "amt"
   }, fmtMoney(r.total, r.currency))), React.createElement("div", {
-    className: "small muted"
-  }, r.items ? (r.merchant || 'Unknown merchant') + ' · ' : '', fmtDate(r.date)), React.createElement("div", {
+    className: "sub"
+  }, sub), React.createElement("div", {
     className: "chips",
     style: {
-      marginTop: 5
+      marginTop: 6
     }
   }, r.category && React.createElement("span", {
     className: "chip"
@@ -5171,11 +5181,7 @@ function ReceiptRow({
   }, "#", t)), r.needsReview && React.createElement("span", {
     className: "chip warn"
   }, "Check"), (r.pages || []).length > 1 && React.createElement("span", {
-    className: "chip",
-    style: {
-      background: 'var(--surface-3)',
-      color: 'var(--text-2)'
-    }
+    className: "chip"
   }, r.pages.length, " pages"))));
 }
 function ReceiptList({
@@ -5249,7 +5255,15 @@ function ReceiptList({
     amount_desc: 'Largest first',
     amount_asc: 'Smallest first'
   }[f.sort];
-  return React.createElement(React.Fragment, null, React.createElement("div", {
+  return React.createElement(React.Fragment, null, !panel && !n && !q && groups.length > 0 && groups[0].label && React.createElement("div", {
+    className: "summary"
+  }, React.createElement("div", {
+    className: "label"
+  }, groups[0].label), React.createElement("div", {
+    className: "big"
+  }, fmtMoney(groups[0].sum, settings.currency)), React.createElement("div", {
+    className: "meta"
+  }, groups[0].items.length, " receipt", groups[0].items.length === 1 ? '' : 's', receipts.filter(r => r.needsReview).length ? ` · ${receipts.filter(r => r.needsReview).length} to check` : '')), React.createElement("div", {
     className: "row",
     style: {
       padding: '0 16px 8px',
@@ -5261,10 +5275,10 @@ function ReceiptList({
     value: q,
     onChange: e => setQ(e.target.value)
   }), React.createElement("button", {
-    className: 'btn' + (n || panel ? ' primary' : ''),
+    className: "btn quiet",
     style: {
       whiteSpace: 'nowrap',
-      padding: '10px 14px'
+      background: n || panel ? 'var(--accent-tint)' : undefined
     },
     onClick: () => setPanel(p => !p)
   }, "Filter", n ? ` (${n})` : '')), panel && React.createElement("div", {
@@ -5391,7 +5405,7 @@ function ReceiptList({
     })
   }, "Needs check x")), React.createElement("div", {
     className: "total-line"
-  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " · ", sortLabel, selecting && React.createElement("button", {
+  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', ", ", sortLabel.toLowerCase(), selecting && React.createElement("button", {
     className: "chip btn",
     style: {
       marginLeft: 8
@@ -5404,17 +5418,24 @@ function ReceiptList({
   }, receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to add one.'), groups.map(g => React.createElement("div", {
     key: g.key
   }, g.label && React.createElement("div", {
-    className: "section-h"
-  }, React.createElement("span", null, g.label), React.createElement("span", {
-    className: "amt"
-  }, fmtMoney(g.sum, settings.currency))), g.items.map(r => React.createElement(ReceiptRow, {
+    className: "month"
+  }, React.createElement("span", {
+    className: "name"
+  }, g.label), React.createElement("span", {
+    className: "sum amt",
+    style: {
+      fontSize: 14
+    }
+  }, fmtMoney(g.sum, settings.currency))), React.createElement("div", {
+    className: "ledger"
+  }, g.items.map(r => React.createElement(ReceiptRow, {
     key: r.id,
     r: r,
     cats: settings.categories,
     onOpen: () => onOpen(r),
     selectable: selecting,
     selected: selecting && selected.has(r.id)
-  })))));
+  }))))));
 }
 function Settings({
   settings,
@@ -6122,7 +6143,7 @@ function App() {
     const targets = receipts.filter(r => selected.has(r.id) && (r.pages || []).length);
     if (!targets.length) return;
     if (!settings.apiKey) {
-      alert('Add your API key in Settings first.');
+      showToast('Add your API key in Settings first.');
       return;
     }
     const state = {
@@ -6297,26 +6318,25 @@ function App() {
     className: "topbar"
   }, React.createElement("h1", null, "Receipts ", React.createElement("span", {
     style: {
+      fontFamily: 'var(--sans)',
       fontSize: 12,
       fontWeight: 400,
       color: 'var(--text-3)',
-      letterSpacing: 0,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
       verticalAlign: 'middle'
     }
-  }, "design")), React.createElement("div", {
-    className: "row"
-  }, React.createElement("span", {
-    className: "small muted"
-  }, receipts.length, " total"), !selecting && React.createElement("button", {
-    className: "btn",
+  }, "ledger")), React.createElement("div", {
+    className: "row",
     style: {
-      padding: '8px 16px'
-    },
+      gap: 0
+    }
+  }, !selecting && React.createElement("button", {
+    className: "btn quiet",
     onClick: () => setSelecting(true)
   }, "Select"), React.createElement("button", {
-    className: "btn",
+    className: "btn quiet",
     style: {
-      padding: '0 16px',
       minWidth: 44
     },
     onClick: () => setShowSettings(true),
@@ -6462,6 +6482,23 @@ window.__receipts = {
 try {
   applyTheme(loadSettings().theme || 'system');
 } catch (_) {}
+(function bindLabels() {
+  let n = 0;
+  const run = () => {
+    document.querySelectorAll('.field > label').forEach(l => {
+      if (l.htmlFor || l.querySelector('input')) return;
+      const input = l.parentElement.querySelector('input, select, textarea');
+      if (!input) return;
+      if (!input.id) input.id = 'f' + ++n;
+      l.htmlFor = input.id;
+    });
+  };
+  new MutationObserver(run).observe(document.getElementById('root'), {
+    childList: true,
+    subtree: true
+  });
+  run();
+})();
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null, React.createElement(App, null)));
 </script>
 </body>

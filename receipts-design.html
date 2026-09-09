@@ -3,81 +3,80 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#F7F7F8">
+  <meta name="theme-color" content="#F4EFE4">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Receipts design</title>
+  <title>Receipts ledger</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <style>
-    /* Design system: neutral visual system, house default. Tokens first, nothing improvised below. */
+    /* Ledger design system. Tokens first; nothing below is improvised. */
     :root {
-      color-scheme: light dark;
-      --surface: #FFFFFF; --surface-2: #F7F7F8; --surface-3: #EFEFF1;
-      --text: #1A1A1F; --text-2: #5C5C66; --text-3: #8A8A94;
-      --border: #E4E4E8; --border-strong: #D4D4DA;
-      --accent: #2563EB; --accent-tint: #EAF0FD; --accent-text: #1D4ED8; --on-accent: #FFFFFF;
-      --red: #DC2626; --red-tint: #FDECEC; --green: #16A34A; --green-tint: #E9F7EE; --amber: #B45309; --amber-tint: #FDF3E1;
-      --r-control: 8px; --r-card: 12px; --r-pill: 999px;
-      --shadow-float: 0 4px 12px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+      color-scheme: light;
+      --sans: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+      --surface: #FFFDF9; --surface-2: #F4EFE4; --surface-3: #EBE5D8;
+      --text: #211D17; --text-2: #5F5849; --text-3: #6F6859;
+      --border: rgba(33,29,23,0.14); --border-strong: rgba(33,29,23,0.28);
+      --accent: #1F6B4A; --accent-tint: #E3EFE7; --accent-text: #185A3E; --on-accent: #FFFFFF;
+      --red: #B42318; --red-tint: #FCEBE9; --green: #1F6B4A; --green-tint: #E3EFE7; --amber: #8A5200; --amber-tint: #FBF0DC;
+      --r-control: 6px; --r-card: 8px; --r-pill: 999px;
+      --shadow-float: 0 4px 12px rgba(33,29,23,0.12), 0 1px 2px rgba(33,29,23,0.08);
       --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur: 200ms;
-      /* names the logic still uses */
       --bg: var(--surface-2); --card: var(--surface); --ink: var(--text); --muted: var(--text-2); --line: var(--border);
       --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
-    :root[data-theme="light"] { color-scheme: light; }
-    :root[data-theme="dark"], :root:not([data-theme="light"]) .dark-tokens { color-scheme: dark; }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
-        --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
-        --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
-        --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
-        --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
-        --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
-      }
-    }
-    :root[data-theme="dark"] {
-      --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
-      --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
-      --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
-      --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
-      --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
+      --surface: #1D1B17; --surface-2: #14130F; --surface-3: #29261F;
+      --text: #F1ECE1; --text-2: #B3AC9E; --text-3: #948C7D;
+      --border: rgba(255,250,240,0.12); --border-strong: rgba(255,250,240,0.24);
+      --accent: #6FBF95; --accent-tint: #1C3428; --accent-text: #9BD7B7; --on-accent: #0E1A13;
+      --red: #F08A80; --red-tint: #3A1F1C; --green: #6FBF95; --green-tint: #1C3428; --amber: #E8B85C; --amber-tint: #3A2F14;
+      --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+    } }
+    :root[data-theme="dark"] { color-scheme: dark;
+      --surface: #1D1B17; --surface-2: #14130F; --surface-3: #29261F;
+      --text: #F1ECE1; --text-2: #B3AC9E; --text-3: #948C7D;
+      --border: rgba(255,250,240,0.12); --border-strong: rgba(255,250,240,0.24);
+      --accent: #6FBF95; --accent-tint: #1C3428; --accent-text: #9BD7B7; --on-accent: #0E1A13;
+      --red: #F08A80; --red-tint: #3A1F1C; --green: #6FBF95; --green-tint: #1C3428; --amber: #E8B85C; --amber-tint: #3A2F14;
       --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.5; }
     body { min-height: 100vh; }
     button { font: inherit; color: inherit; cursor: pointer; }
     input, select, textarea { font: inherit; color: inherit; }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
     .app { min-height: 100vh; padding-bottom: calc(96px + var(--safe-b)); max-width: 640px; margin: 0 auto; }
     .sheet > * { max-width: 640px; margin-left: auto; margin-right: auto; }
     .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: calc(12px + var(--safe-t)) 16px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .topbar h1 { font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .topbar h1 { font-family: var(--serif); font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+    .serif { font-family: var(--serif); }
     .fab { position: fixed; right: 16px; bottom: calc(24px + var(--safe-b)); z-index: 31; width: 56px; height: 56px; border-radius: var(--r-pill); background: var(--accent); color: var(--on-accent); border: none; box-shadow: var(--shadow-float); display: flex; align-items: center; justify-content: center; transition: transform var(--dur) var(--ease-out); }
     .fab:active { transform: scale(0.96); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px 16px; margin: 0 16px 8px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); padding: 12px; margin: 0 16px 16px; }
     .row { display: flex; align-items: center; gap: 8px; }
     .grow { flex: 1; min-width: 0; }
     .muted { color: var(--text-2); }
     .small { font-size: 14px; }
-    .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-pill); font-size: 12px; line-height: 20px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+    .amt { font-family: var(--serif); font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.01em; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 24px; border-radius: var(--r-pill); font-size: 12px; line-height: 1; background: transparent; color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
     .chip .dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
-    .chip.tag { background: var(--surface); color: var(--text-2); }
+    .chip.tag { color: var(--text-2); }
     .chip.warn { background: var(--amber-tint); color: var(--amber); border-color: transparent; }
-    .chip.btn { background: var(--surface); border-color: var(--border); color: var(--text); min-height: 32px; padding: 4px 12px; transition: background var(--dur) var(--ease-out); }
+    .chip.btn { background: var(--surface); border-color: var(--border-strong); color: var(--text); min-height: 44px; padding: 0 14px; font-size: 14px; transition: background var(--dur) var(--ease-out); }
     .chip.btn.on { background: var(--accent-tint); color: var(--accent-text); border-color: var(--accent); }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .thumb { width: 48px; height: 64px; object-fit: cover; border-radius: var(--r-control); background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
+    .thumb { width: 44px; height: 56px; object-fit: cover; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border); flex-shrink: 0; }
     .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-control); padding: 10px 16px; min-height: 44px; font-weight: 600; font-size: 16px; transition: background var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out); }
     .btn:active { background: var(--surface-2); }
     .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .btn.quiet { background: transparent; border-color: transparent; color: var(--accent-text); padding: 10px 12px; }
     .btn.danger { color: var(--red); border-color: var(--border-strong); }
     .btn.danger.armed { background: var(--red); color: #fff; border-color: var(--red); }
     .btn.wide { width: 100%; }
@@ -91,18 +90,19 @@
     .field.unsure input, .field.unsure select { border-color: var(--amber); }
     .field.unsure { background: var(--amber-tint); margin-left: -8px; margin-right: -8px; padding: 8px 8px 4px; border-radius: var(--r-control); }
     .unsure-note { font-size: 14px; color: var(--amber); margin-top: 4px; }
-    .section-h { padding: 16px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; display: flex; justify-content: space-between; align-items: center; }
+    .section-h { padding: 24px 16px 8px; font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; display: flex; justify-content: space-between; align-items: center; }
+    .section-h .amt { font-size: 14px; color: var(--text-2); }
     .empty { text-align: center; color: var(--text-2); padding: 64px 24px; font-size: 16px; }
     .search { width: 100%; padding: 10px 12px; min-height: 44px; border-radius: var(--r-control); border: 1px solid var(--border-strong); background: var(--surface); font-size: 16px; }
     .filters { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 8px; scrollbar-width: none; }
     .filters::-webkit-scrollbar { display: none; }
-    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; align-self: center; min-width: 64px; flex-shrink: 0; }
+    .flabel { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; align-self: center; min-width: 64px; flex-shrink: 0; }
     .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding-bottom: calc(24px + var(--safe-b)); }
     .sheet .topbar { background: var(--bg); }
     .pages { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
-    .pages img { height: 120px; border-radius: var(--r-control); border: 1px solid var(--border); }
+    .pages img { height: 120px; border-radius: 4px; border: 1px solid var(--border); }
     .pages .add { height: 120px; width: 88px; border-radius: var(--r-control); border: 1px dashed var(--border-strong); background: none; color: var(--text-2); font-size: 14px; }
-    .banner { margin: 0 16px 8px; padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
+    .banner { margin: 0 16px 16px; padding: 12px; border-radius: var(--r-card); font-size: 14px; line-height: 1.5; }
     .banner.err { background: var(--red-tint); color: var(--red); }
     .banner.ok { background: var(--green-tint); color: var(--green); }
     .banner.info { background: var(--accent-tint); color: var(--accent-text); }
@@ -110,9 +110,23 @@
     .spinner.dark { border-color: var(--border-strong); border-top-color: var(--accent); }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes focusPulse { 0% { transform: scale(1.3); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .kv { display: grid; grid-template-columns: 112px 1fr; gap: 8px 12px; font-size: 14px; }
-    .kv .k { color: var(--text-2); }
+    .facts { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text-2); margin-top: 12px; }
+    .facts .mono { font-variant-numeric: tabular-nums; color: var(--text); }
     .total-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; font-size: 14px; color: var(--text-2); }
+    .ledger { margin: 0 16px; border-top: 1px solid var(--border); }
+    .lrow { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .lrow.sel { background: var(--accent-tint); margin: 0 -16px; padding: 12px 16px; }
+    .lrow .title { font-size: 16px; font-weight: 600; line-height: 1.3; }
+    .lrow .sub { font-size: 14px; color: var(--text-2); margin-top: 2px; }
+    .lrow .amt { font-size: 20px; white-space: nowrap; }
+    .month { display: flex; justify-content: space-between; align-items: baseline; padding: 24px 16px 8px; }
+    .month .name { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+    .month .sum { font-size: 14px; color: var(--text-2); }
+    .summary { margin: 8px 16px 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+    .summary .label { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .summary .big { font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .summary .meta { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+    .toast { position: fixed; left: 16px; right: 16px; bottom: calc(96px + var(--safe-b)); z-index: 80; background: var(--text); color: var(--surface); padding: 12px 16px; border-radius: var(--r-card); font-size: 14px; box-shadow: var(--shadow-float); max-width: 608px; margin: 0 auto; }
     .crop-wrap { position: relative; touch-action: none; user-select: none; }
     .crop-wrap img { display: block; width: 100%; height: auto; }
     .handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 22px; background: rgba(255,255,255,0.15); border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.4); }
@@ -135,7 +149,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-09b-demo-mode-design';
+    const BUILD_VERSION = '2026-09-09b-demo-mode-ledger';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -180,6 +194,7 @@
         };
       }, [open]);
     }
+    const showToast = (msg) => { try { let el = document.getElementById('toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); } el.textContent = String(msg); el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 5000); } catch (_) { window.alert(msg); } };
     class ErrorBoundary extends React.Component {
       constructor(p) { super(p); this.state = { err: null }; }
       static getDerivedStateFromError(err) { return { err }; }
@@ -198,7 +213,7 @@
     }
     const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
     const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
-    const CATEGORY_COLOURS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#0891B2', '#A16207', '#64748B'];
+    const CATEGORY_COLOURS = ['#1F6B4A', '#2F5FA8', '#B86A00', '#7A3E9D', '#B42318', '#0F7A8A', '#8A6D2B', '#5B6470'];
 
     // ---------- Settings (localStorage) ----------
     const DEMO = /[?&]demo\b/.test(location.search);
@@ -1070,7 +1085,7 @@
                 {busy && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)', color: '#fff' }}>Capturing...</div>}
                 {reticle && <div style={{ position: 'absolute', left: reticle.x - 30, top: reticle.y - 30, width: 60, height: 60, border: '2px solid #fff', borderRadius: 4, pointerEvents: 'none', animation: 'focusPulse 0.9s ease-out forwards' }} />}
                 <div style={{ position: 'absolute', top: 'calc(10px + var(--safe-t))', left: 12, right: 12, display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: 12, opacity: 0.85, pointerEvents: 'none' }}><span>Page {pageNo}</span><span>{res}</span></div>
-                {zoomCaps && <div style={{ position: 'absolute', right: 12, bottom: 34, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 12, pointerEvents: 'none' }}>{zoom.toFixed(1)}x</div>}
+                {zoomCaps && <div style={{ position: 'absolute', right: 12, bottom: 34, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: 14, padding: '4px 10px', fontSize: 12, pointerEvents: 'none' }}>{zoom.toFixed(1)}x</div>}
                 {ready && <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: '#fff', opacity: 0.6, fontSize: 12, pointerEvents: 'none' }}>{zoomCaps ? 'Pinch to zoom' : 'Zoom not supported on this lens'}{canTapFocus ? ' · tap to focus' : ''}</div>}
               </div>
               {zoomCaps && <div style={{ background: '#000', padding: '4px 20px 0' }}><input type="range" min={zoomCaps.min} max={zoomCaps.max} step={zoomCaps.step || 0.1} value={zoom} onChange={e => applyZoom(+e.target.value)} style={{ width: '100%' }} /></div>}
@@ -1141,7 +1156,7 @@
             const colour = warpQuad(canvas, quad, 2800);
             const enhanced = enhanceCanvas(colour);
             setResult({ colour, enhanced, colourUrl: scaleCanvas(colour, 1600, 0.82), enhancedUrl: scaleCanvas(enhanced, 1600, 0.82) });
-          } catch (e) { logError('crop', e); alert('Could not process that photo: ' + e.message); }
+          } catch (e) { logError('crop', e); showToast('Could not process that photo: ' + e.message); }
           finally { setBusy(false); }
         }, 30);
       };
@@ -1160,7 +1175,7 @@
           <div style={{ padding: 'calc(8px + var(--safe-t)) 16px 4px', fontSize: 12, opacity: 0.7, textAlign: 'center' }}>{(enhance ? result.enhanced : result.colour).width}x{(enhance ? result.enhanced : result.colour).height} · pinch to zoom</div>
           <ZoomPane style={{ flex: 1 }}>
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-              <img src={enhance ? result.enhancedUrl : result.colourUrl} draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
+              <img src={enhance ? result.enhancedUrl : result.colourUrl} alt="Cleaned page" draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
             </div>
           </ZoomPane>
           <div style={{ padding: '10px 16px calc(20px + var(--safe-b))', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1190,7 +1205,7 @@
           <ZoomPane style={{ flex: 1, margin: '0 34px' }} onScale={setZoom}>
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '26px 8px' }}>
               <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%', aspectRatio: `${canvas.width} / ${canvas.height}`, width: canvas.width >= canvas.height ? '100%' : 'auto', height: canvas.width >= canvas.height ? 'auto' : '100%' }}>
-                <img ref={imgRef} src={preview} draggable={false} style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }} />
+                <img ref={imgRef} src={preview} alt="Photo to crop" draggable={false} style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }} />
                 {quad && <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox={`0 0 ${canvas.width} ${canvas.height}`} preserveAspectRatio="none">
                   <polygon points={quad.map(p => `${p.x},${p.y}`).join(' ')} fill="rgba(31,58,95,0.18)" stroke="#fff" strokeWidth={Math.max(2, canvas.width / 500) / zoom} vectorEffect="non-scaling-stroke" />
                 </svg>}
@@ -1258,7 +1273,7 @@
       return (
         <div className="card grow" style={{ margin: 0, padding: 10 }}>
           <div className="small muted" style={{ marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-          {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-3)' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
+          {r.thumb ? <div onClick={onView} style={{ cursor: 'pointer' }}><img src={r.thumb} alt="" style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: 'var(--surface-3)' }} /><div className="small muted" style={{ textAlign: 'center' }}>Tap to view{(r.pages || []).length > 1 ? ` ${r.pages.length} pages` : ''}</div></div> : <div className="muted small" style={{ height: 40 }}>no image</div>}
           <div style={{ fontWeight: 600, marginTop: 6 }}>{r.items || r.merchant || 'Receipt'}</div>
           <div className="small muted">{r.items ? r.merchant : ''}</div>
           <div className="small">{fmtDate(r.date) || 'No date'} · <span className="amt">{fmtMoney(r.total, r.currency) || 'No total'}</span>{r.receiptNo ? <span className="muted"> · #{r.receiptNo}</span> : null}</div>
@@ -1295,7 +1310,7 @@
           const blobs = []; for (const pid of r.pages) { const b = await dbGetImageBlob(pid); if (b) blobs.push(b); }
           const data = await extractPages(blobs, settings);
           if (readingRef.current === r.id) await openEdit(r, { ...draftFromExtraction(data, settings, r), total: undefined });
-        } catch (e) { alert(extractErrMsg(e)); }
+        } catch (e) { showToast(extractErrMsg(e)); }
         readingRef.current = null; setReading(null);
       };
       const saveEdit = async (rec) => {
@@ -1317,7 +1332,7 @@
       const pair = cur < pairs.length ? pairs[cur] : null;
       const remaining = pairs.filter((_, k) => k >= cur && valid(k)).length;
       const next = () => { const n = firstValidFrom(cur + 1); if (n < pairs.length) setI(n); else onClose(); };
-      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); logError('duplicates', e); } setBusy(false); next(); };
+      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { showToast(e.message); logError('duplicates', e); } setBusy(false); next(); };
       useEffect(() => { if (!pair) onClose(); }, [pair]);
       if (!pair) return <div className="sheet"><div className="empty">All duplicates handled.</div></div>;
       if (edit) { const d = edit.draft; if (d.total === undefined) d.total = edit.r.total ?? ''; return <ReceiptForm key={'dup-' + edit.r.id + '-' + edit.stamp} draft={d} pages={edit.pages} settings={settings} setSettings={setSettings} onSave={saveEdit} onCancel={() => { edit.pages.forEach(p => URL.revokeObjectURL(p.url)); setEdit(null); }} title="Edit this entry" />; }
@@ -1329,7 +1344,7 @@
           {viewer && <ImageViewer urls={viewer.urls} names={viewer.names} start={0} onClose={() => setViewer(null)} />}
           <div className="topbar"><button className="btn" onClick={onClose}>Close</button><h1 style={{ fontSize: 20 }}>Possible duplicate{remaining > 1 ? ` (${remaining} left)` : ''}</h1><span style={{ width: 70 }} /></div>
           <div className="banner info">{pair.reason}.</div>
-          <div className="row" style={{ alignItems: 'stretch', padding: '0 16px 12px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} busyAny={!!reading} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} busyAny={!!reading} /></div>
+          <div className="row" style={{ alignItems: 'stretch', padding: '0 16px 16px', gap: 8 }}><DupCard r={left} cats={settings.categories} label={leftLabel} onView={() => view(left)} onEdit={() => openEdit(left)} onReread={() => reread(left)} reading={reading === left.id} busyAny={!!reading} /><DupCard r={right} cats={settings.categories} label={rightLabel} onView={() => view(right)} onEdit={() => openEdit(right)} onReread={() => reread(right)} reading={reading === right.id} busyAny={!!reading} /></div>
           <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="small muted" style={{ textAlign: 'center' }}>Merge keeps every page, tag and note from both. The side you merge into wins where the two disagree.</div>
             <div className="row">
@@ -1361,7 +1376,7 @@
       const [edit, setEdit] = useState(null); const [busy, setBusy] = useState(false);
       useBack(!!edit, () => setEdit(null));
       const next = () => { const n = items.findIndex((x, k) => k > i && x.status === 'pending'); if (n >= 0) setReview({ items, i: n }); else { const first = items.findIndex(x => x.status === 'pending'); if (first >= 0) setReview({ items, i: first }); else onDone(); } };
-      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert(e.message); } setBusy(false); next(); };
+      const act = async (fn) => { setBusy(true); try { await fn(); } catch (e) { showToast(e.message); } setBusy(false); next(); };
       const accept = () => act(() => onApply(item, item.after));
       const keep = () => act(async () => { item.status = 'kept'; });
       const acceptAll = () => act(async () => { for (const it of items) if (it.status === 'pending') await onApply(it, it.after); });
@@ -1377,7 +1392,7 @@
           <div className="banner info">{changed.length ? `${changed.length} field${changed.length === 1 ? '' : 's'} would change. Nothing is saved until you accept.` : 'The AI read the same values. Nothing to change.'}{(item.after.unsure || []).length ? ` Unsure: ${item.after.unsure.join(', ')}.` : ''}</div>
           <div className="card">
             <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-              {item.before.thumb && <img src={item.before.thumb} className="thumb" style={{ width: 70, height: 90 }} />}
+              {item.before.thumb && <img src={item.before.thumb} alt="" className="thumb" style={{ width: 70, height: 90 }} />}
               <div className="grow" style={{ display: 'grid', gridTemplateColumns: '84px 1fr 1fr', gap: '6px 8px', fontSize: 14 }}>
                 <span /><span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Now</span><span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase' }}>AI read</span>
                 {FIELDS.map(([k, label]) => { const diff = !sameVal(k, item.before[k], item.after[k]); return (
@@ -1505,7 +1520,7 @@
             <div className="pages">
               {pages.map((p, i) => (
                 <div key={p.id} style={{ position: 'relative' }}>
-                  <img src={p.url} />
+                  <img src={p.url} alt="Receipt page" />
                   <div className="small" style={{ textAlign: 'center' }}>Page {i + 1}</div>
                   <button onClick={() => removePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: var_red(), color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>
                 </div>
@@ -1564,7 +1579,7 @@
       const doSave = async () => {
         setSaving(true);
         const out = { ...r, total: r.total === '' ? null : +r.total, gst: r.gstIncluded ? gstOf(r.total) : null, needsReview: (r.unsure || []).length > 0 };
-        try { await onSave(out); } catch (e) { setSaving(false); alert('Save failed: ' + e.message); }
+        try { await onSave(out); } catch (e) { setSaving(false); showToast('Save failed: ' + e.message); }
       };
       useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 3000); return () => clearTimeout(t); }, [armed]);
       const Note = ({ k }) => unsure(k) ? <div className="unsure-note">Check this</div> : null;
@@ -1577,7 +1592,7 @@
             <div className="pages">
               {pages.map((p) => (
                 <div key={p.id} style={{ position: 'relative' }}>
-                  <img src={p.url} />
+                  <img src={p.url} alt="Receipt page" />
                   {onRemovePage && <button onClick={() => onRemovePage(p.id)} style={{ position: 'absolute', top: -6, right: -6, width: 24, height: 24, borderRadius: 12, background: 'var(--red)', color: '#fff', border: 'none', fontSize: 14, lineHeight: 1 }}>x</button>}
                 </div>
               ))}
@@ -1587,9 +1602,9 @@
           <div className="card">
             <div className="field"><label>Item</label><input value={r.items || ''} onChange={e => set('items', e.target.value)} placeholder="What was bought" /></div>
             <div className={'field' + (unsure('merchant') ? ' unsure' : '')}><label>Merchant</label><input value={r.merchant} onChange={e => set('merchant', e.target.value)} placeholder="e.g. JB Hi-Fi" /><Note k="merchant" /></div>
-            <div className="row" style={{ alignItems: 'flex-start' }}>
-              <div className={'field grow' + (unsure('date') ? ' unsure' : '')}><label>Date</label><DateField value={r.date} onChange={v => set('date', v)} /><Note k="date" /></div>
-              <div className={'field' + (unsure('total') ? ' unsure' : '')} style={{ width: 130 }}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" /><Note k="total" /></div>
+            <div>
+              <div className={'field' + (unsure('date') ? ' unsure' : '')}><label>Date</label><DateField value={r.date} onChange={v => set('date', v)} /><Note k="date" /></div>
+              <div className={'field' + (unsure('total') ? ' unsure' : '')}><label>Total ({r.currency})</label><input type="number" inputMode="decimal" step="0.01" value={r.total} onChange={e => set('total', e.target.value)} placeholder="0.00" /><Note k="total" /></div>
             </div>
             <div className="field">
               <label className="row" style={{ justifyContent: 'space-between', textTransform: 'none', letterSpacing: 0, fontSize: 16, fontWeight: 400, color: 'var(--ink)', cursor: 'pointer' }}>
@@ -1606,14 +1621,14 @@
               <label>Tags (pick any)</label>
               <ChipPicker multi options={settings.tags} value={r.tags} onChange={v => set('tags', v)} onAdd={addTag} addLabel="New tag" />
             </div>
-            <div className="row">
-              <div className="field grow"><label>Receipt or invoice no.</label><input value={r.receiptNo || ''} onChange={e => set('receiptNo', e.target.value)} placeholder="This document only" /></div>
+            <div>
+              <div className="field"><label>Receipt or invoice no.</label><input value={r.receiptNo || ''} onChange={e => set('receiptNo', e.target.value)} placeholder="This document only" /></div>
               <div className="field grow"><label>Account no.</label><input value={r.accountNo || ''} onChange={e => set('accountNo', e.target.value)} placeholder="Repeats every bill" /></div>
             </div>
             <div className="field"><label>Comments</label><textarea value={r.comments || ''} onChange={e => set('comments', e.target.value)} placeholder="Warranty period, who to claim from, anything else" /></div>
             <div className="row" style={{ justifyContent: 'space-between' }}><span className="small muted">Currency</span><input value={r.currency} onChange={e => set('currency', e.target.value.toUpperCase())} maxLength={3} style={{ width: 64, padding: '6px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'center' }} /></div>
           </div>
-          {onDelete && <div style={{ padding: '0 16px 20px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
+          {onDelete && <div style={{ padding: '0 16px 24px' }}><button className={'btn wide danger' + (armed ? ' armed' : '')} onClick={() => armed ? onDelete() : setArmed(true)}>{armed ? 'Tap again to delete' : 'Delete receipt'}</button></div>}
         </div>
       );
     }
@@ -1630,7 +1645,7 @@
           </div>
           <ZoomPane key={i} style={{ flex: 1 }} maxScale={8}>
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img src={urls[i]} draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              <img src={urls[i]} alt={`Receipt page ${i + 1}`} draggable={false} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             </div>
           </ZoomPane>
           {urls.length > 1 && <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '10px 0 calc(16px + var(--safe-b))' }}>
@@ -1681,27 +1696,27 @@
           <div className="card">
             <div className="row" style={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div className="grow">
-                <div style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.25 }}>{receipt.items || receipt.merchant || 'Receipt'}</div>
-                <div className="muted" style={{ marginTop: 2, fontSize: 14 }}>{[receipt.items ? (receipt.merchant || 'Unknown merchant') : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · ')}</div>
+                <div className="serif" style={{ fontSize: 24, fontWeight: 600, lineHeight: 1.2 }}>{receipt.items || receipt.merchant || 'Receipt'}</div>
+                <div className="muted" style={{ marginTop: 2 }}>{[receipt.items ? (receipt.merchant || 'Unknown merchant') : '', fmtDate(receipt.date) || 'No date'].filter(Boolean).join(' · ')}</div>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 600, whiteSpace: 'nowrap' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
+              <div style={{ fontSize: 24, whiteSpace: 'nowrap' }} className="amt">{fmtMoney(receipt.total, receipt.currency) || 'No total'}</div>
             </div>
             <div className="chips" style={{ marginTop: 10 }}>
               {receipt.category && <span className="chip"><span className="dot" style={{ background: col }} />{receipt.category}</span>}
               {(receipt.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
             </div>
-            <div className="kv" style={{ marginTop: 12 }}>
-              <span className="k">GST</span><span>{receipt.gstIncluded ? `Included, ${fmtMoney(gstOf(receipt.total), receipt.currency)}` : 'Not included'}</span>
-              {receipt.receiptNo && <><span className="k">Receipt no.</span><span style={{ fontFamily: 'monospace' }}>{receipt.receiptNo}</span></>}
-              {receipt.accountNo && <><span className="k">Account no.</span><span style={{ fontFamily: 'monospace' }}>{receipt.accountNo}</span></>}
-              {receipt.comments && <><span className="k">Comments</span><span style={{ whiteSpace: 'pre-wrap' }}>{receipt.comments}</span></>}
-              <span className="k">Added</span><span>{fmtDate((receipt.createdAt || '').slice(0, 10))}</span>
+            <div className="facts">
+              <div>{receipt.gstIncluded ? `Includes ${fmtMoney(gstOf(receipt.total), receipt.currency)} GST` : 'No GST'}</div>
+              {receipt.receiptNo && <div>Receipt no. <span className="mono">{receipt.receiptNo}</span></div>}
+              {receipt.accountNo && <div>Account <span className="mono">{receipt.accountNo}</span></div>}
+              {receipt.comments && <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text)' }}>{receipt.comments}</div>}
+              <div>Added {fmtDate((receipt.createdAt || '').slice(0, 10))}</div>
             </div>
           </div>
           {readErr && <div className="banner err" onClick={() => setReadErr(null)}>{readErr}</div>}
           <div className="section-h"><span>{pages.length ? `Pages (${pages.length})` : 'No image yet'}</span><div className="row" style={{ gap: 6 }}>{pages.length > 0 && <button className="chip btn" disabled={reading} onClick={reread}>{reading ? 'AI reading...' : 'AI re-analyse'}</button>}<button className="chip btn" onClick={() => setAdding(true)}>+ Add page</button></div></div>
           <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {pages.map((p, i) => <img key={p.id} src={p.url} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
+            {pages.map((p, i) => <img key={p.id} src={p.url} alt={`Receipt page ${i + 1}`} onClick={() => setViewer(i)} style={{ width: '100%', borderRadius: 10, border: '1px solid var(--line)', background: '#fff' }} />)}
           </div>
         </div>
       );
@@ -1719,21 +1734,22 @@
     const filterCount = (f) => (f.from ? 1 : 0) + (f.to ? 1 : 0) + f.cats.length + f.tags.length + (f.review ? 1 : 0);
     function ReceiptRow({ r, cats, onOpen, selectable, selected }) {
       const col = catColour(r.category, cats);
+      const sub = [r.items ? (r.merchant || 'Unknown merchant') : '', fmtDate(r.date)].filter(Boolean).join(' · ');
       return (
-        <div className="card row" onClick={onOpen} style={{ cursor: 'pointer', borderColor: selected ? 'var(--navy)' : undefined, background: selected ? 'var(--navy-soft)' : undefined }}>
-          {selectable && <div style={{ width: 24, height: 24, borderRadius: 12, border: '2px solid ' + (selected ? 'var(--navy)' : 'var(--line)'), background: selected ? 'var(--navy)' : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{selected ? '✓' : ''}</div>}
-          {r.thumb ? <img className="thumb" src={r.thumb} /> : <div className="thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--text-3)' }}>none</div>}
+        <div className={'lrow' + (selected ? ' sel' : '')} onClick={onOpen} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}>
+          {selectable && <div aria-hidden="true" style={{ width: 24, height: 24, marginTop: 16, borderRadius: 12, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--border-strong)'), background: selected ? 'var(--accent)' : 'transparent', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{selected ? '✓' : ''}</div>}
+          {r.thumb ? <img className="thumb" src={r.thumb} alt="" /> : <div className="thumb" aria-hidden="true" />}
           <div className="grow">
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.3 }}>{r.items || r.merchant || 'Receipt'}</div>
-              <div className="amt" style={{ whiteSpace: 'nowrap' }}>{fmtMoney(r.total, r.currency)}</div>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div className="title">{r.items || r.merchant || 'Receipt'}</div>
+              <div className="amt">{fmtMoney(r.total, r.currency)}</div>
             </div>
-            <div className="small muted">{r.items ? (r.merchant || 'Unknown merchant') + ' · ' : ''}{fmtDate(r.date)}</div>
-            <div className="chips" style={{ marginTop: 5 }}>
+            <div className="sub">{sub}</div>
+            <div className="chips" style={{ marginTop: 6 }}>
               {r.category && <span className="chip"><span className="dot" style={{ background: col }} />{r.category}</span>}
               {(r.tags || []).map(t => <span key={t} className="chip tag">#{t}</span>)}
               {r.needsReview && <span className="chip warn">Check</span>}
-              {(r.pages || []).length > 1 && <span className="chip" style={{ background: 'var(--surface-3)', color: 'var(--text-2)' }}>{r.pages.length} pages</span>}
+              {(r.pages || []).length > 1 && <span className="chip">{r.pages.length} pages</span>}
             </div>
           </div>
         </div>
@@ -1766,9 +1782,16 @@
       const sortLabel = { date_desc: 'Newest first', date_asc: 'Oldest first', amount_desc: 'Largest first', amount_asc: 'Smallest first' }[f.sort];
       return (
         <>
+          {!panel && !n && !q && groups.length > 0 && groups[0].label && (
+            <div className="summary">
+              <div className="label">{groups[0].label}</div>
+              <div className="big">{fmtMoney(groups[0].sum, settings.currency)}</div>
+              <div className="meta">{groups[0].items.length} receipt{groups[0].items.length === 1 ? '' : 's'}{receipts.filter(r => r.needsReview).length ? ` · ${receipts.filter(r => r.needsReview).length} to check` : ''}</div>
+            </div>
+          )}
           <div className="row" style={{ padding: '0 16px 8px', gap: 8 }}>
             <input className="search grow" placeholder="Search item, merchant, comments" value={q} onChange={e => setQ(e.target.value)} />
-            <button className={'btn' + (n || panel ? ' primary' : '')} style={{ whiteSpace: 'nowrap', padding: '10px 14px' }} onClick={() => setPanel(p => !p)}>Filter{n ? ` (${n})` : ''}</button>
+            <button className="btn quiet" style={{ whiteSpace: 'nowrap', background: n || panel ? 'var(--accent-tint)' : undefined }} onClick={() => setPanel(p => !p)}>Filter{n ? ` (${n})` : ''}</button>
           </div>
           {panel && (
             <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1808,12 +1831,12 @@
               {f.review && <button className="chip btn on" onClick={() => setFilter({ ...f, review: false })}>Needs check x</button>}
             </div>
           )}
-          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'} · {sortLabel}{selecting && <button className="chip btn" style={{ marginLeft: 8 }} onClick={() => onSelectAll(shown.map(r => r.id))}>Select all shown</button>}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
+          <div className="total-line"><span>{shown.length} receipt{shown.length === 1 ? '' : 's'}, {sortLabel.toLowerCase()}{selecting && <button className="chip btn" style={{ marginLeft: 8 }} onClick={() => onSelectAll(shown.map(r => r.id))}>Select all shown</button>}</span><span className="amt">{fmtMoney(total, settings.currency)}</span></div>
           {!shown.length && <div className="empty">{receipts.length ? 'Nothing matches.' : 'No receipts yet. Tap + to add one.'}</div>}
           {groups.map(g => (
             <div key={g.key}>
-              {g.label && <div className="section-h"><span>{g.label}</span><span className="amt">{fmtMoney(g.sum, settings.currency)}</span></div>}
-              {g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} selectable={selecting} selected={selecting && selected.has(r.id)} />)}
+              {g.label && <div className="month"><span className="name">{g.label}</span><span className="sum amt" style={{ fontSize: 14 }}>{fmtMoney(g.sum, settings.currency)}</span></div>}
+              <div className="ledger">{g.items.map(r => <ReceiptRow key={r.id} r={r} cats={settings.categories} onOpen={() => onOpen(r)} selectable={selecting} selected={selecting && selected.has(r.id)} />)}</div>
             </div>
           ))}
         </>
@@ -2050,7 +2073,7 @@
       const bulkReread = async () => {
         const targets = receipts.filter(r => selected.has(r.id) && (r.pages || []).length);
         if (!targets.length) return;
-        if (!settings.apiKey) { alert('Add your API key in Settings first.'); return; }
+        if (!settings.apiKey) { showToast('Add your API key in Settings first.'); return; }
         const state = { done: 0, total: targets.length, errors: [], stop: false, results: [] }; setBulk({ ...state });
         for (const r of targets) {
           if (state.stop) break;
@@ -2099,7 +2122,7 @@
       );
       return (
         <div className="app">
-          <div className="topbar"><h1>Receipts <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-3)', letterSpacing: 0, verticalAlign: 'middle' }}>design</span></h1><div className="row"><span className="small muted">{receipts.length} total</span>{!selecting && <button className="btn" style={{ padding: '8px 16px' }} onClick={() => setSelecting(true)}>Select</button>}<button className="btn" style={{ padding: '0 16px', minWidth: 44 }} onClick={() => setShowSettings(true)} aria-label="Settings"><svg className="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div className="topbar"><h1>Receipts <span style={{ fontFamily: 'var(--sans)', fontSize: 12, fontWeight: 400, color: 'var(--text-3)', letterSpacing: '0.08em', textTransform: 'uppercase', verticalAlign: 'middle' }}>ledger</span></h1><div className="row" style={{ gap: 0 }}>{!selecting && <button className="btn quiet" onClick={() => setSelecting(true)}>Select</button>}<button className="btn quiet" style={{ minWidth: 44 }} onClick={() => setShowSettings(true)} aria-label="Settings"><svg className="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           {selecting && (
             <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 32, background: 'var(--surface)', borderTop: '1px solid var(--border)', padding: '12px 16px calc(12px + var(--safe-b))', boxShadow: 'var(--shadow-float)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {bulk ? (
@@ -2127,6 +2150,11 @@
     }
     window.__receipts = { makeZip, readZip, buildExportZip, importData, dbGetAll, detectReceipt }; // for testing from the console
     try { applyTheme((loadSettings().theme) || 'system'); } catch (_) {}
+    (function bindLabels() {
+      let n = 0;
+      const run = () => { document.querySelectorAll('.field > label').forEach(l => { if (l.htmlFor || l.querySelector('input')) return; const input = l.parentElement.querySelector('input, select, textarea'); if (!input) return; if (!input.id) input.id = 'f' + (++n); l.htmlFor = input.id; }); };
+      new MutationObserver(run).observe(document.getElementById('root'), { childList: true, subtree: true }); run();
+    })();
     ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
   </script>
 </body>
