@@ -28,8 +28,10 @@
       --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
+    :root[data-theme="light"] { color-scheme: light; }
+    :root[data-theme="dark"], :root:not([data-theme="light"]) .dark-tokens { color-scheme: dark; }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
         --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
         --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
@@ -37,6 +39,14 @@
         --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
         --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
       }
+    }
+    :root[data-theme="dark"] {
+      --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
+      --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
+      --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
+      --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
+      --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+      --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
@@ -125,7 +135,7 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    const BUILD_VERSION = '2026-09-09a-detail-separator-design';
+    const BUILD_VERSION = '2026-09-09b-demo-mode-design';
     // Last errors are kept on the device so a blank screen can be explained from Settings, Diagnostics.
     const ERR_KEY = 'receipts_errors';
     const logError = (where, e) => {
@@ -191,7 +201,10 @@
     const CATEGORY_COLOURS = ['#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DC2626', '#0891B2', '#A16207', '#64748B'];
 
     // ---------- Settings (localStorage) ----------
-    const SKEY = 'receipts_settings';
+    const DEMO = /[?&]demo\b/.test(location.search);
+    const SKEY = DEMO ? 'receipts_settings_demo' : 'receipts_settings';
+    const HAS_DARK = true; // the design variant sets this true
+    const applyTheme = (t) => { if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); };
     const loadSettings = () => {
       const base = { apiKey: '', categories: DEFAULT_CATEGORIES.slice(), tags: DEFAULT_TAGS.slice(), currency: 'AUD', enhanceDefault: true, driveConnected: false, driveFolderId: '', lastSync: null, notDuplicates: [], cameraDevice: '' };
       try { const s = JSON.parse(localStorage.getItem(SKEY) || '{}'); return { ...base, ...s }; } catch (_) { return base; }
@@ -199,7 +212,7 @@
     const saveSettings = (s) => { try { localStorage.setItem(SKEY, JSON.stringify(s)); } catch (_) {} };
 
     // ---------- IndexedDB ----------
-    const DB_NAME = 'receipts_db', DB_VER = 1;
+    const DB_NAME = DEMO ? 'receipts_demo' : 'receipts_db', DB_VER = 1;
     let dbPromise = null;
     const openDB = () => {
       if (dbPromise) return dbPromise;
@@ -1385,6 +1398,40 @@
       );
     }
 
+    // ---------- Demo data (only when the URL carries ?demo; lives in its own database) ----------
+    const drawSampleReceipt = (kind) => {
+      const W = 900, H = 1500; const c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+      x.fillStyle = '#f8f7f3'; x.fillRect(0, 0, W, H); x.fillStyle = '#1c1c1c'; x.textAlign = 'center';
+      const line = (t, y, size, bold, align) => { x.font = (bold ? 'bold ' : '') + size + 'px monospace'; x.textAlign = align || 'center'; x.fillText(t, align === 'left' ? 70 : align === 'right' ? W - 70 : W / 2, y); };
+      if (kind === 'jb') {
+        line('JB HI-FI', 120, 60, true); line('JB Hi-Fi Brighton', 170, 26); line('459 Nepean Hwy Brighton VIC 3186', 205, 24); line('ABN 37 093 114 286', 240, 24); line('TAX INVOICE', 300, 28, true);
+        const rows = [['Sony WH-1000XM5', '449.00'], ['USB-C cable 2m', '19.95'], ['', ''], ['SUBTOTAL', '468.95'], ['GST INCLUDED', '42.63'], ['TOTAL', '468.95'], ['', ''], ['VISA', '468.95']];
+        rows.forEach((r, i) => { line(r[0], 380 + i * 48, 28, r[0] === 'TOTAL', 'left'); line(r[1], 380 + i * 48, 28, r[0] === 'TOTAL', 'right'); });
+        line('Receipt no. 209954430-4', 820, 24, false, 'left'); line('02/09/2026 14:32', 856, 24, false, 'left'); line('2 YEAR WARRANTY ON HEADPHONES', 940, 26, true); line('Thank you for shopping', 990, 24);
+      } else {
+        line('agl', 110, 64, true, 'left'); line('Electricity', 110, 28, false, 'right'); line('Tax invoice', 160, 24, false, 'right'); line('Issue date 23 Sep 2026', 200, 24, false, 'right'); line('Account 7037 479 032', 236, 24, false, 'right');
+        line('Direct debit amount', 520, 26, false, 'left'); line('$327.43', 600, 64, true, 'left'); line('Direct debit date 14 Oct 2026', 660, 26, false, 'left');
+        line('Reference 7037 4790 3294 1101 3366', 1300, 22, false, 'left');
+      }
+      return c;
+    };
+    const seedDemo = async () => {
+      const existing = await dbGetAll('receipts'); if (existing.length) return;
+      const mk = async (kind) => { const c = drawSampleReceipt(kind); const blob = await canvasToBlob(c, 0.85); const id = uid(); await dbPut('images', { id, blob }); const thumb = await makeThumb(blob); c.width = 0; return { id, thumb }; };
+      const jb = await mk('jb'), agl = await mk('agl'), agl2 = await mk('agl');
+      const now = new Date().toISOString();
+      const rows = [
+        { items: 'Sony WH-1000XM5 headphones', merchant: 'JB Hi-Fi', date: '2026-09-02', total: 468.95, gstIncluded: true, category: 'Electronics', tags: ['Warranty'], comments: 'Warranty: 2 years', receiptNo: '209954430-4', pages: [jb.id], thumb: jb.thumb, unsure: [], needsReview: false },
+        { items: 'Electricity', merchant: 'AGL', date: '2026-09-23', total: 327.43, gstIncluded: true, category: 'Bills', tags: [], comments: '', accountNo: '7037 479 032', pages: [agl.id, agl2.id], thumb: agl.thumb, unsure: [], needsReview: false },
+        { items: 'Fuel', merchant: 'Ampol', date: '2026-09-05', total: 86.75, gstIncluded: true, category: 'Vehicle', tags: [], comments: '', pages: [], thumb: null, unsure: [], needsReview: false },
+        { items: 'Dog sitter', merchant: '', date: '2026-08-28', total: 274.68, gstIncluded: false, category: 'Work', tags: ['Reimbursable'], comments: 'Work trip, 3 nights', pages: [], thumb: null, unsure: ['merchant'], needsReview: true },
+        { items: 'Rates instalment 1', merchant: 'Glen Eira City Council', date: '2026-08-20', total: 401.45, gstIncluded: false, category: 'Bills', tags: [], comments: 'Rate notice 2026-27, total $1,605.85', pages: [], thumb: null, unsure: [], needsReview: false },
+        { items: 'Groceries', merchant: 'Woolworths', date: '2026-07-14', total: 132.20, gstIncluded: true, category: 'Other', tags: [], comments: '', pages: [], thumb: null, unsure: [], needsReview: false },
+      ];
+      for (const r of rows) await dbPut('receipts', { id: uid(), currency: 'AUD', createdAt: r.date + 'T09:00:00.000Z', updatedAt: now, ...r });
+      saveSettings({ ...loadSettings(), categories: ['Electronics', 'Bills', 'Vehicle', 'Food and entertainment', 'Work', 'Other'], tags: ['Warranty', 'Reimbursable'] });
+    };
+
     // ---------- Capture flow: camera -> crop -> (more pages) -> extract -> review form ----------
     function CaptureFlow({ settings, setSettings, onSaved, onCancel, existing, receipts }) {
       // existing: receipt being edited to add pages to (optional)
@@ -1943,6 +1990,12 @@
             )}
           </div>
 
+          {HAS_DARK && <>
+            <div className="section-h"><span>Appearance</span></div>
+            <div className="card">
+              <div className="seg">{[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => <button key={k} className={(settings.theme || 'system') === k ? 'on' : ''} onClick={() => { setSettings(s => ({ ...s, theme: k })); applyTheme(k); }}>{l}</button>)}</div>
+            </div>
+          </>}
           <div className="section-h"><span>Diagnostics</span></div>
           <div className="card">
             <div className="small" style={{ fontFamily: 'monospace' }}>build {BUILD_VERSION}</div>
@@ -1976,9 +2029,9 @@
       const [open, setOpen] = useState(null);
       const [filter, setFilter] = useState(EMPTY_FILTER);
       const [loaded, setLoaded] = useState(false);
-      const reload = useCallback(async () => { try { const all = await dbGetAll('receipts'); setReceipts(all); } catch (e) { console.error(e); } setLoaded(true); }, []);
+      const reload = useCallback(async () => { try { if (DEMO) { await seedDemo(); setSettingsState(loadSettings()); } const all = await dbGetAll('receipts'); setReceipts(all); } catch (e) { console.error(e); } setLoaded(true); }, []);
       useEffect(() => { reload(); }, []);
-      useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {} }, []);
+      useEffect(() => { if (!DEMO && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {}); try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {} }, []);
       const onSaved = (r, removedId) => { setReceipts(list => [...list.filter(x => x.id !== r.id && x.id !== removedId), r]); setCapturing(false); setOpen(r); };
       const [dupReview, setDupReview] = useState(false); const [dupReviewKey, setDupReviewKey] = useState(0);
       const openDupReview = () => { setDupReviewKey(k => k + 1); setDupReview(true); };
@@ -2065,6 +2118,7 @@
               )}
             </div>
           )}
+          {DEMO && <div className="banner info">Demo data. Nothing here touches your real receipts.</div>}
           {loaded && dupPairs.length > 0 && <div className="banner" style={{ background: 'var(--amber-soft)', color: 'var(--amber)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{dupPairs.length} possible duplicate{dupPairs.length === 1 ? '' : 's'}</span><button className="chip btn" onClick={openDupReview}>Review</button></div>}
           {!loaded ? <div className="empty">Loading...</div> : <ReceiptList receipts={receipts} settings={settings} onOpen={openReceipt} filter={filter} setFilter={setFilter} q={q} setQ={setQ} selecting={selecting} selected={selected} onSelectAll={selectAll} />}
           {!selecting && <button className="fab" onClick={() => setCapturing(true)} aria-label="Add receipt"><svg className="icon" style={{ width: 24, height: 24, strokeWidth: 2 }} viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>}
@@ -2072,6 +2126,7 @@
       );
     }
     window.__receipts = { makeZip, readZip, buildExportZip, importData, dbGetAll, detectReceipt }; // for testing from the console
+    try { applyTheme((loadSettings().theme) || 'system'); } catch (_) {}
     ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
   </script>
 </body>

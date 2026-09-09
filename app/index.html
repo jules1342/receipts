@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-09a-detail-separator';
+const BUILD_VERSION = '2026-09-09b-demo-mode';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -552,7 +552,12 @@ class ErrorBoundary extends React.Component {
 const DEFAULT_CATEGORIES = ['Electronics', 'Bills'];
 const DEFAULT_TAGS = ['Warranty', 'Reimbursable'];
 const CATEGORY_COLOURS = ['#1F3A5F', '#2E7D4F', '#B7791F', '#7B4FA1', '#B23A3A', '#2A7F8F', '#8A6D3B', '#4C5B7A'];
-const SKEY = 'receipts_settings';
+const DEMO = /[?&]demo\b/.test(location.search);
+const SKEY = DEMO ? 'receipts_settings_demo' : 'receipts_settings';
+const HAS_DARK = false;
+const applyTheme = t => {
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);else document.documentElement.removeAttribute('data-theme');
+};
 const loadSettings = () => {
   const base = {
     apiKey: '',
@@ -581,7 +586,7 @@ const saveSettings = s => {
     localStorage.setItem(SKEY, JSON.stringify(s));
   } catch (_) {}
 };
-const DB_NAME = 'receipts_db',
+const DB_NAME = DEMO ? 'receipts_demo' : 'receipts_db',
   DB_VER = 1;
 let dbPromise = null;
 const openDB = () => {
@@ -3785,6 +3790,166 @@ function BulkReview({
     onClick: acceptAll
   }, "Accept all ", pending, " remaining")));
 }
+const drawSampleReceipt = kind => {
+  const W = 900,
+    H = 1500;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const x = c.getContext('2d');
+  x.fillStyle = '#f8f7f3';
+  x.fillRect(0, 0, W, H);
+  x.fillStyle = '#1c1c1c';
+  x.textAlign = 'center';
+  const line = (t, y, size, bold, align) => {
+    x.font = (bold ? 'bold ' : '') + size + 'px monospace';
+    x.textAlign = align || 'center';
+    x.fillText(t, align === 'left' ? 70 : align === 'right' ? W - 70 : W / 2, y);
+  };
+  if (kind === 'jb') {
+    line('JB HI-FI', 120, 60, true);
+    line('JB Hi-Fi Brighton', 170, 26);
+    line('459 Nepean Hwy Brighton VIC 3186', 205, 24);
+    line('ABN 37 093 114 286', 240, 24);
+    line('TAX INVOICE', 300, 28, true);
+    const rows = [['Sony WH-1000XM5', '449.00'], ['USB-C cable 2m', '19.95'], ['', ''], ['SUBTOTAL', '468.95'], ['GST INCLUDED', '42.63'], ['TOTAL', '468.95'], ['', ''], ['VISA', '468.95']];
+    rows.forEach((r, i) => {
+      line(r[0], 380 + i * 48, 28, r[0] === 'TOTAL', 'left');
+      line(r[1], 380 + i * 48, 28, r[0] === 'TOTAL', 'right');
+    });
+    line('Receipt no. 209954430-4', 820, 24, false, 'left');
+    line('02/09/2026 14:32', 856, 24, false, 'left');
+    line('2 YEAR WARRANTY ON HEADPHONES', 940, 26, true);
+    line('Thank you for shopping', 990, 24);
+  } else {
+    line('agl', 110, 64, true, 'left');
+    line('Electricity', 110, 28, false, 'right');
+    line('Tax invoice', 160, 24, false, 'right');
+    line('Issue date 23 Sep 2026', 200, 24, false, 'right');
+    line('Account 7037 479 032', 236, 24, false, 'right');
+    line('Direct debit amount', 520, 26, false, 'left');
+    line('$327.43', 600, 64, true, 'left');
+    line('Direct debit date 14 Oct 2026', 660, 26, false, 'left');
+    line('Reference 7037 4790 3294 1101 3366', 1300, 22, false, 'left');
+  }
+  return c;
+};
+const seedDemo = async () => {
+  const existing = await dbGetAll('receipts');
+  if (existing.length) return;
+  const mk = async kind => {
+    const c = drawSampleReceipt(kind);
+    const blob = await canvasToBlob(c, 0.85);
+    const id = uid();
+    await dbPut('images', {
+      id,
+      blob
+    });
+    const thumb = await makeThumb(blob);
+    c.width = 0;
+    return {
+      id,
+      thumb
+    };
+  };
+  const jb = await mk('jb'),
+    agl = await mk('agl'),
+    agl2 = await mk('agl');
+  const now = new Date().toISOString();
+  const rows = [{
+    items: 'Sony WH-1000XM5 headphones',
+    merchant: 'JB Hi-Fi',
+    date: '2026-09-02',
+    total: 468.95,
+    gstIncluded: true,
+    category: 'Electronics',
+    tags: ['Warranty'],
+    comments: 'Warranty: 2 years',
+    receiptNo: '209954430-4',
+    pages: [jb.id],
+    thumb: jb.thumb,
+    unsure: [],
+    needsReview: false
+  }, {
+    items: 'Electricity',
+    merchant: 'AGL',
+    date: '2026-09-23',
+    total: 327.43,
+    gstIncluded: true,
+    category: 'Bills',
+    tags: [],
+    comments: '',
+    accountNo: '7037 479 032',
+    pages: [agl.id, agl2.id],
+    thumb: agl.thumb,
+    unsure: [],
+    needsReview: false
+  }, {
+    items: 'Fuel',
+    merchant: 'Ampol',
+    date: '2026-09-05',
+    total: 86.75,
+    gstIncluded: true,
+    category: 'Vehicle',
+    tags: [],
+    comments: '',
+    pages: [],
+    thumb: null,
+    unsure: [],
+    needsReview: false
+  }, {
+    items: 'Dog sitter',
+    merchant: '',
+    date: '2026-08-28',
+    total: 274.68,
+    gstIncluded: false,
+    category: 'Work',
+    tags: ['Reimbursable'],
+    comments: 'Work trip, 3 nights',
+    pages: [],
+    thumb: null,
+    unsure: ['merchant'],
+    needsReview: true
+  }, {
+    items: 'Rates instalment 1',
+    merchant: 'Glen Eira City Council',
+    date: '2026-08-20',
+    total: 401.45,
+    gstIncluded: false,
+    category: 'Bills',
+    tags: [],
+    comments: 'Rate notice 2026-27, total $1,605.85',
+    pages: [],
+    thumb: null,
+    unsure: [],
+    needsReview: false
+  }, {
+    items: 'Groceries',
+    merchant: 'Woolworths',
+    date: '2026-07-14',
+    total: 132.20,
+    gstIncluded: true,
+    category: 'Other',
+    tags: [],
+    comments: '',
+    pages: [],
+    thumb: null,
+    unsure: [],
+    needsReview: false
+  }];
+  for (const r of rows) await dbPut('receipts', {
+    id: uid(),
+    currency: 'AUD',
+    createdAt: r.date + 'T09:00:00.000Z',
+    updatedAt: now,
+    ...r
+  });
+  saveSettings({
+    ...loadSettings(),
+    categories: ['Electronics', 'Bills', 'Vehicle', 'Food and entertainment', 'Work', 'Other'],
+    tags: ['Warranty', 'Reimbursable']
+  });
+};
 function CaptureFlow({
   settings,
   setSettings,
@@ -5758,7 +5923,23 @@ function Settings({
     onClick: () => confirmRestore ? driveRestore() : setConfirmRestore(true)
   }, confirmRestore ? 'Tap again to restore' : 'Restore from Drive')), React.createElement("div", {
     className: "small muted"
-  }, settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'))), React.createElement("div", {
+  }, settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'))), HAS_DARK && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "section-h"
+  }, React.createElement("span", null, "Appearance")), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "seg"
+  }, [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => React.createElement("button", {
+    key: k,
+    className: (settings.theme || 'system') === k ? 'on' : '',
+    onClick: () => {
+      setSettings(s => ({
+        ...s,
+        theme: k
+      }));
+      applyTheme(k);
+    }
+  }, l))))), React.createElement("div", {
     className: "section-h"
   }, React.createElement("span", null, "Diagnostics")), React.createElement("div", {
     className: "card"
@@ -5829,6 +6010,10 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     try {
+      if (DEMO) {
+        await seedDemo();
+        setSettingsState(loadSettings());
+      }
       const all = await dbGetAll('receipts');
       setReceipts(all);
     } catch (e) {
@@ -5840,7 +6025,7 @@ function App() {
     reload();
   }, []);
   useEffect(() => {
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+    if (!DEMO && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
     try {
       navigator.storage && navigator.storage.persist && navigator.storage.persist();
     } catch (_) {}
@@ -6148,7 +6333,9 @@ function App() {
     className: "btn primary",
     disabled: !selected.size,
     onClick: bulkReread
-  }, "AI re-analyse (", receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length, ")"))), loaded && dupPairs.length > 0 && React.createElement("div", {
+  }, "AI re-analyse (", receipts.filter(r => selected.has(r.id) && (r.pages || []).length).length, ")"))), DEMO && React.createElement("div", {
+    className: "banner info"
+  }, "Demo data. Nothing here touches your real receipts."), loaded && dupPairs.length > 0 && React.createElement("div", {
     className: "banner",
     style: {
       background: 'var(--amber-soft)',
@@ -6187,6 +6374,9 @@ window.__receipts = {
   dbGetAll,
   detectReceipt
 };
+try {
+  applyTheme(loadSettings().theme || 'system');
+} catch (_) {}
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null, React.createElement(App, null)));
 </script>
 </body>

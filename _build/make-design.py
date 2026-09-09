@@ -30,8 +30,10 @@ STYLE = """  <style>
       --navy: var(--accent); --navy-soft: var(--accent-tint); --amber-soft: var(--amber-tint); --green-soft: var(--green-tint); --radius: var(--r-card);
       --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
     }
+    :root[data-theme="light"] { color-scheme: light; }
+    :root[data-theme="dark"], :root:not([data-theme="light"]) .dark-tokens { color-scheme: dark; }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
         --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
         --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
@@ -39,6 +41,14 @@ STYLE = """  <style>
         --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
         --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
       }
+    }
+    :root[data-theme="dark"] {
+      --surface: #1C1C21; --surface-2: #121215; --surface-3: #26262C;
+      --text: #F2F2F4; --text-2: #A9A9B1; --text-3: #7C7C86;
+      --border: rgba(255,255,255,0.10); --border-strong: rgba(255,255,255,0.18);
+      --accent: #6B96F5; --accent-tint: #1C2A48; --accent-text: #9DB8FA; --on-accent: #0B1220;
+      --red: #F87171; --red-tint: #3A1D1D; --green: #4ADE80; --green-tint: #17301F; --amber: #FBBF24; --amber-tint: #3A2E12;
+      --shadow-float: 0 4px 16px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif; font-size: 16px; line-height: 1.5; }
@@ -121,6 +131,7 @@ STYLE = """  <style>
 i = s.index('  <style>'); j = s.index('  </style>') + len('  </style>')
 s = s[:i] + STYLE + s[j:]
 
+rep("const HAS_DARK = false;", "const HAS_DARK = true;")
 # identity of the copy
 rep('<title>Receipts</title>', '<title>Receipts design</title>')
 rep("<meta name=\"theme-color\" content=\"#1F3A5F\">", "<meta name=\"theme-color\" content=\"#F7F7F8\">")

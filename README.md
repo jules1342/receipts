@@ -46,3 +46,6 @@ Settings, Export everything (zip). On the phone the share sheet opens, so you ca
 
 ## Migrating from Smart Receipts
 `_build/smart-receipts-convert.py` turns a Smart Receipts "report with images" zip into a zip this app imports. Run it on the PC with your API key in the environment so every image is read by Claude, which pins the ambiguous matches (Fuel, Gas, Water) by invoice date and total, fills merchant and a concise item name, and prefers the invoice when the hand-typed row disagrees. Reads are cached in `reads.json`, so a re-run is free. The output folder gets `smart-receipts-import.zip` and a `report.md` listing anything matched by order only or left unmatched. Import the zip on the phone through Settings.
+
+## Demo mode
+Add `?demo` to either address (`/receipts/?demo` or `/receipts/design/?demo`) to open the app on a separate, throwaway database seeded with six sample receipts and generated receipt images. It never reads or writes the real data, and the service worker is not registered in demo mode.
