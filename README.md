@@ -26,7 +26,7 @@ The project is a git repo pushed to `github.com/jules1342/receipts`. A GitHub Ac
 
     https://jules1342.github.io/receipts/
 
-To ship a change: edit `receipts.html`, bump `BUILD_VERSION`, build, then commit and push. The design variant at `/receipts/design/` is regenerated with `python _build/make-design.py` then `node _build/build.js receipts-design.html app/design/index.html`. `_build/deploy.cmd` does the build, commit and push in one go. The site updates about a minute after the push; the phone picks it up on the next open (the service worker fetches the page network-first).
+To ship a change: edit `receipts.html`, bump `BUILD_VERSION`, build, then commit and push. `_build/deploy.cmd` does the build, commit and push in one go. The site updates about a minute after the push; the phone picks it up on the next open (the service worker fetches the page network-first).
 
 ## Install on the phone
 Open the site in Chrome on Android, tap the menu, Add to Home screen, Install. It opens full screen and works offline. Allow the camera when asked.
@@ -46,6 +46,3 @@ Settings, Export everything (zip). On the phone the share sheet opens, so you ca
 
 ## Migrating from Smart Receipts
 `_build/smart-receipts-convert.py` turns a Smart Receipts "report with images" zip into a zip this app imports. Run it on the PC with your API key in the environment so every image is read by Claude, which pins the ambiguous matches (Fuel, Gas, Water) by invoice date and total, fills merchant and a concise item name, and prefers the invoice when the hand-typed row disagrees. Reads are cached in `reads.json`, so a re-run is free. The output folder gets `smart-receipts-import.zip` and a `report.md` listing anything matched by order only or left unmatched. Import the zip on the phone through Settings.
-
-## Demo mode
-Add `?demo` to either address (`/receipts/?demo` or `/receipts/design/?demo`) to open the app on a separate, throwaway database seeded with six sample receipts and generated receipt images. It never reads or writes the real data, and the service worker is not registered in demo mode.
