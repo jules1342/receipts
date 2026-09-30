@@ -2,7 +2,7 @@
 > _Location: Projects / Personal / App Development / Receipts_
 
 ## Context
-Receipts is a phone app Julian built to replace paper receipts. He photographs a receipt (several pages if needed), the app finds the edges, straightens and cleans the image, Claude reads merchant, date, total, GST and category, and the receipt files under one category plus any tags (sections such as Warranty or Reimbursable). Data lives in IndexedDB on the phone. Backup is a zip export, or Google Drive sync once he creates the OAuth client. It is built the same way as Macro: one JSX source file, a local build that inlines React, a deploy folder that GitHub Pages publishes from `github.com/jules1342/receipts` on every push. Read `README.md` before touching anything.
+Receipts is a phone app Julian built to replace paper receipts. He photographs a receipt (several pages if needed), the app finds the edges, straightens and cleans the image, Claude reads merchant, date, total, GST and category, and the receipt files under one category plus any tags (sections such as Warranty or Reimbursable). Data lives in IndexedDB on the phone. Backup is a zip export, or automatic Google Drive sync through the App Data relay (script in the Macro repo). It is built the same way as Macro: one JSX source file, a local build that inlines React, a deploy folder that GitHub Pages publishes from `github.com/jules1342/receipts` on every push. Read `README.md` before touching anything.
 
 ## Index
 - **DECISIONS.md**: between-session memory. Task state lives in the root `CURRENT STATUS.md`.

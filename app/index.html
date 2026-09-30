@@ -406,7 +406,7 @@ const {
   useMemo,
   useCallback
 } = React;
-const BUILD_VERSION = '2026-09-06w-reanalyse-race';
+const BUILD_VERSION = '2026-10-01a-drive-relay-autosync';
 const ERR_KEY = 'receipts_errors';
 const logError = (where, e) => {
   try {
@@ -576,11 +576,21 @@ const loadSettings = () => {
     return base;
   }
 };
+let syncedSettingsSig = null;
+const settingsSig = s => JSON.stringify([s.categories, s.tags, s.notDuplicates || []]);
 const saveSettings = s => {
   try {
     localStorage.setItem(SKEY, JSON.stringify(s));
   } catch (_) {}
+  const sig = settingsSig(s);
+  if (syncedSettingsSig !== null && sig !== syncedSettingsSig) {
+    try {
+      driveSync.mark();
+    } catch (_) {}
+  }
+  syncedSettingsSig = sig;
 };
+syncedSettingsSig = settingsSig(loadSettings());
 const DB_NAME = 'receipts_db',
   DB_VER = 1;
 let dbPromise = null;
@@ -617,15 +627,30 @@ const tx = async (store, mode, fn) => {
       rej(e);
       return;
     }
-    t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+    t.oncomplete = () => res(out instanceof IDBRequest ? out.result : out);
     t.onerror = () => rej(t.error);
     t.onabort = () => rej(t.error);
   });
 };
 const dbGetAll = store => tx(store, 'readonly', s => s.getAll());
 const dbGet = (store, id) => tx(store, 'readonly', s => s.get(id));
-const dbPut = (store, obj) => tx(store, 'readwrite', s => s.put(obj));
-const dbDel = (store, id) => tx(store, 'readwrite', s => s.delete(id));
+const markSync = store => {
+  if (store === 'receipts' || store === 'images') {
+    try {
+      driveSync.mark();
+    } catch (_) {}
+  }
+};
+const dbPut = async (store, obj) => {
+  const r = await tx(store, 'readwrite', s => s.put(obj));
+  markSync(store);
+  return r;
+};
+const dbDel = async (store, id) => {
+  const r = await tx(store, 'readwrite', s => s.delete(id));
+  markSync(store);
+  return r;
+};
 const dbGetImageBlob = async id => {
   const r = await dbGet('images', id);
   return r ? r.blob : null;
@@ -1668,128 +1693,278 @@ const readZip = async buf => {
   }
   return out;
 };
-const DRIVE_CLIENT_ID = '662075205003-gfgqm2s951u7hfnne86ok12trlvfdjom.apps.googleusercontent.com';
-const DRIVE_PATH = ['App Data', 'Receipts'];
-const DRIVE_FOLDER = DRIVE_PATH.join('/');
-const gis = {
-  token: null,
-  exp: 0,
-  client: null
-};
-const loadGIS = () => new Promise((res, rej) => {
-  if (window.google && google.accounts) return res();
-  const s = document.createElement('script');
-  s.src = 'https://accounts.google.com/gsi/client';
-  s.async = true;
-  s.onload = () => res();
-  s.onerror = () => rej(new Error('Could not load Google sign-in script'));
-  document.head.appendChild(s);
-});
-const driveToken = async (clientId, interactive = true) => {
-  if (gis.token && Date.now() < gis.exp - 60000) return gis.token;
+const DRIVE_FOLDER = 'App Data/Receipts';
+const RELAY_URL_KEY = 'app_data_relay';
+const RELAY_OK_KEY = 'receipts_drive_ready';
+const RELAY_DIRTY_KEY = 'receipts_drive_dirty';
+const RELAY_LAST_KEY = 'receipts_drive_last';
+const lsGet = k => {
   try {
-    const c = JSON.parse(sessionStorage.getItem('receipts_gtoken') || 'null');
-    if (c && Date.now() < c.exp - 60000) {
-      gis.token = c.token;
-      gis.exp = c.exp;
-      return c.token;
-    }
-  } catch (_) {}
-  if (!interactive) throw new Error('Not signed in to Google');
-  await loadGIS();
-  return new Promise((res, rej) => {
-    gis.client = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/drive.file',
-      callback: r => {
-        if (r.error) return rej(new Error(r.error_description || r.error));
-        gis.token = r.access_token;
-        gis.exp = Date.now() + (r.expires_in || 3600) * 1000;
-        try {
-          sessionStorage.setItem('receipts_gtoken', JSON.stringify({
-            token: gis.token,
-            exp: gis.exp
-          }));
-        } catch (_) {}
-        res(gis.token);
-      },
-      error_callback: e => rej(new Error(e && e.message ? e.message : 'Google sign-in was cancelled'))
-    });
-    gis.client.requestAccessToken({
-      prompt: ''
-    });
-  });
-};
-const dfetch = async (token, url, opts = {}) => {
-  const r = await fetch(url, {
-    ...opts,
-    headers: {
-      Authorization: 'Bearer ' + token,
-      ...(opts.headers || {})
-    }
-  });
-  if (!r.ok) {
-    let m = '';
-    try {
-      m = (await r.json()).error.message;
-    } catch (_) {}
-    throw new Error(m || `Drive HTTP ${r.status}`);
+    return localStorage.getItem(k);
+  } catch (_) {
+    return null;
   }
-  return r;
 };
-const driveFolder = async token => {
-  let parent = 'root';
-  for (const name of DRIVE_PATH) {
-    const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parent}' in parents and trashed=false`);
-    const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`)).json();
-    if (j.files && j.files.length) {
-      parent = j.files[0].id;
+const lsSet = (k, v) => {
+  try {
+    if (v === null) localStorage.removeItem(k);else localStorage.setItem(k, v);
+  } catch (_) {}
+};
+const relayUrl = () => lsGet(RELAY_URL_KEY) || '';
+const relayLinkProblem = u => {
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\?k=\w+/.test(u)) {
+    return /\/dev(\?|$)/.test(u) ? 'That is the test (/dev) link. Use the Web app link ending in /exec, plus ?k=your key.' : 'That does not look like the relay link. It starts https://script.google.com/macros/s/ and ends /exec?k=...';
+  }
+  return '';
+};
+const relayCall = async (body, url = relayUrl()) => {
+  if (!url) throw new Error('Drive sync is not linked on this phone.');
+  let r;
+  try {
+    r = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        app: 'receipts',
+        ...body
+      })
+    });
+  } catch (_) {
+    throw new Error('Could not reach the Drive relay. Check your connection.');
+  }
+  if (!r.ok) throw new Error(`Drive relay HTTP ${r.status}`);
+  let j;
+  try {
+    j = await r.json();
+  } catch (_) {
+    throw new Error('The relay did not answer with data. Check it is deployed with access set to Anyone.');
+  }
+  if (j.error) throw new Error(j.error);
+  return j;
+};
+const blobToB64 = blob => new Promise((res, rej) => {
+  const fr = new FileReader();
+  fr.onload = () => res(String(fr.result).split(',')[1] || '');
+  fr.onerror = () => rej(fr.error);
+  fr.readAsDataURL(blob);
+});
+const b64ToBlob = (b64, type) => {
+  const bin = atob(b64);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], {
+    type: type || 'image/jpeg'
+  });
+};
+const buildManifest = (receipts, settings) => JSON.stringify({
+  app: 'Receipts',
+  build: BUILD_VERSION,
+  exportedAt: new Date().toISOString(),
+  categories: settings.categories,
+  tags: settings.tags,
+  notDuplicates: settings.notDuplicates || [],
+  receipts: receipts.map(r => ({
+    ...r,
+    thumb: undefined
+  }))
+});
+const relayPush = async () => {
+  const receipts = await dbGetAll('receipts');
+  const settings = loadSettings();
+  const {
+    files
+  } = await relayCall({
+    action: 'list'
+  });
+  const byId = {};
+  (files || []).forEach(f => {
+    const id = idFromFileName(f.name);
+    if (id) byId[id] = f;
+  });
+  let up = 0,
+    renamed = 0;
+  for (const r of receipts) for (const [i, pid] of (r.pages || []).entries()) {
+    const want = pageFileName(r, i, pid);
+    const have = byId[pid];
+    if (have) {
+      if (have.name !== want) {
+        await relayCall({
+          action: 'rename',
+          id: have.id,
+          name: want
+        });
+        renamed++;
+      }
       continue;
     }
-    const c = await (await dfetch(token, 'https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        mimeType: 'application/vnd.google-apps.folder',
-        parents: [parent]
-      })
-    })).json();
-    parent = c.id;
+    const blob = await dbGetImageBlob(pid);
+    if (!blob) continue;
+    await relayCall({
+      action: 'putFile',
+      name: want,
+      mime: blob.type || 'image/jpeg',
+      data: await blobToB64(blob)
+    });
+    up++;
   }
-  return parent;
-};
-const driveList = async (token, folderId) => {
-  let files = [],
-    pageToken = '';
-  do {
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const j = await (await dfetch(token, `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,modifiedTime,size)&pageSize=1000${pageToken ? '&pageToken=' + pageToken : ''}`)).json();
-    files = files.concat(j.files || []);
-    pageToken = j.nextPageToken || '';
-  } while (pageToken);
-  return files;
-};
-const driveUpload = async (token, folderId, name, blob, existingId) => {
-  const meta = existingId ? {} : {
-    name,
-    parents: [folderId]
+  await relayCall({
+    action: 'putText',
+    name: 'receipts.json',
+    text: buildManifest(receipts, settings)
+  });
+  lsSet(RELAY_LAST_KEY, new Date().toISOString());
+  return {
+    up,
+    renamed
   };
-  const form = new FormData();
-  form.append('metadata', new Blob([JSON.stringify(meta)], {
-    type: 'application/json'
-  }));
-  form.append('file', blob);
-  const url = existingId ? `https://www.googleapis.com/upload/drive/v3/files/${existingId}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-  const j = await (await dfetch(token, url, {
-    method: existingId ? 'PATCH' : 'POST',
-    body: form
-  })).json();
-  return j.id;
 };
-const driveDownload = async (token, id) => (await dfetch(token, `https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).blob();
+const relayRestore = async receipts => {
+  const {
+    files
+  } = await relayCall({
+    action: 'list'
+  });
+  const mj = await relayCall({
+    action: 'getText',
+    name: 'receipts.json'
+  });
+  if (mj.text == null) throw new Error('No receipts.json in the Drive folder yet.');
+  const manifest = JSON.parse(mj.text);
+  const byId = {};
+  (files || []).forEach(f => {
+    const id = idFromFileName(f.name);
+    if (id) byId[id] = f;
+  });
+  let added = 0,
+    imgs = 0;
+  for (const r of manifest.receipts || []) {
+    for (const pid of r.pages || []) {
+      if (await dbGet('images', pid)) continue;
+      const f = byId[pid];
+      if (!f) continue;
+      const j = await relayCall({
+        action: 'getFile',
+        id: f.id
+      });
+      await dbPut('images', {
+        id: pid,
+        blob: await normalisePageBlob(b64ToBlob(j.data, j.mime))
+      });
+      imgs++;
+    }
+    const cur = receipts.find(x => x.id === r.id);
+    if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
+    let thumb = null;
+    if (r.pages && r.pages[0]) {
+      const b = await dbGetImageBlob(r.pages[0]);
+      if (b) thumb = await makeThumb(b);
+    }
+    await dbPut('receipts', {
+      ...r,
+      thumb
+    });
+    added++;
+  }
+  return {
+    manifest,
+    added,
+    imgs
+  };
+};
+const driveSync = (() => {
+  const subs = new Set();
+  let timer = null,
+    running = null,
+    again = false,
+    gen = 0;
+  const st = {
+    busy: false,
+    error: null,
+    last: lsGet(RELAY_LAST_KEY)
+  };
+  const emit = () => {
+    st.last = lsGet(RELAY_LAST_KEY);
+    subs.forEach(fn => {
+      try {
+        fn({
+          ...st
+        });
+      } catch (_) {}
+    });
+  };
+  const linked = () => !!relayUrl();
+  const ready = () => linked() && (lsGet(RELAY_OK_KEY) === '1' || !!lsGet(RELAY_LAST_KEY) || !!loadSettings().lastSync);
+  const dirty = () => lsGet(RELAY_DIRTY_KEY) === '1';
+  const run = async (force = false) => {
+    if (!(force ? linked() : ready())) return null;
+    if (running) {
+      again = true;
+      return running;
+    }
+    clearTimeout(timer);
+    timer = null;
+    st.busy = true;
+    emit();
+    running = (async () => {
+      const g = gen;
+      try {
+        const r = await relayPush();
+        lsSet(RELAY_OK_KEY, '1');
+        if (gen === g) lsSet(RELAY_DIRTY_KEY, null);
+        st.error = null;
+        return r;
+      } catch (e) {
+        st.error = e.message;
+        if (force) throw e;
+        return null;
+      } finally {
+        running = null;
+        st.busy = false;
+        emit();
+        if (again) {
+          again = false;
+          if (dirty()) run();
+        }
+      }
+    })();
+    return running;
+  };
+  const mark = () => {
+    if (!linked()) return;
+    gen++;
+    lsSet(RELAY_DIRTY_KEY, '1');
+    if (!ready()) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => run(), 10000);
+  };
+  const flush = () => {
+    if (ready() && (dirty() || !lsGet(RELAY_LAST_KEY))) run();
+  };
+  document.addEventListener('visibilitychange', flush);
+  window.addEventListener('online', flush);
+  window.addEventListener('pagehide', flush);
+  setTimeout(flush, 3000);
+  return {
+    mark,
+    run,
+    linked,
+    ready,
+    subscribe: fn => {
+      subs.add(fn);
+      fn({
+        ...st
+      });
+      return () => subs.delete(fn);
+    },
+    setReady: () => lsSet(RELAY_OK_KEY, '1'),
+    clearDirty: () => lsSet(RELAY_DIRTY_KEY, null),
+    unlink: () => {
+      clearTimeout(timer);
+      [RELAY_URL_KEY, RELAY_OK_KEY, RELAY_DIRTY_KEY].forEach(k => lsSet(k, null));
+      st.error = null;
+      emit();
+    }
+  };
+})();
 const csvEscape = v => {
   const s = v === null || v === undefined ? '' : String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -2896,7 +3071,7 @@ function CropEditor({
       opacity: 0.7,
       textAlign: 'center'
     }
-  }, (enhance ? result.enhanced : result.colour).width, "x", (enhance ? result.enhanced : result.colour).height, " · pinch to zoom"), React.createElement(ZoomPane, {
+  }, (enhance ? result.enhanced : result.colour).width, "x", (enhance ? result.enhanced : result.colour).height, " \xB7 pinch to zoom"), React.createElement(ZoomPane, {
     style: {
       flex: 1
     }
@@ -2999,7 +3174,7 @@ function CropEditor({
     style: {
       opacity: 0.7
     }
-  }, dims, " · pinch to zoom, pan away from the screen edge")), React.createElement("div", {
+  }, dims, " \xB7 pinch to zoom, pan away from the screen edge")), React.createElement("div", {
     className: "row",
     style: {
       gap: 4
@@ -3233,11 +3408,11 @@ function DupCard({
     className: "small muted"
   }, r.items ? r.merchant : ''), React.createElement("div", {
     className: "small"
-  }, fmtDate(r.date) || 'No date', " · ", React.createElement("span", {
+  }, fmtDate(r.date) || 'No date', " \xB7 ", React.createElement("span", {
     className: "amt"
   }, fmtMoney(r.total, r.currency) || 'No total'), r.receiptNo ? React.createElement("span", {
     className: "muted"
-  }, " · #", r.receiptNo) : null), React.createElement("div", {
+  }, " \xB7 #", r.receiptNo) : null), React.createElement("div", {
     className: "chips",
     style: {
       marginTop: 4
@@ -4144,7 +4319,7 @@ function DateField({
     },
     onClick: openPicker,
     "aria-label": "Pick a date"
-  }, "📅"), React.createElement("input", {
+  }, "\uD83D\uDCC5"), React.createElement("input", {
     ref: pickRef,
     type: "date",
     value: value || '',
@@ -5173,7 +5348,7 @@ function ReceiptList({
     })
   }, "Needs check x")), React.createElement("div", {
     className: "total-line"
-  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " · ", sortLabel, selecting && React.createElement("button", {
+  }, React.createElement("span", null, shown.length, " receipt", shown.length === 1 ? '' : 's', " \xB7 ", sortLabel, selecting && React.createElement("button", {
     className: "chip btn",
     style: {
       marginLeft: 8
@@ -5217,15 +5392,40 @@ function Settings({
     const t = setTimeout(() => setConfirmRestore(false), 4000);
     return () => clearTimeout(t);
   }, [confirmRestore]);
+  const [relayInput, setRelayInput] = useState('');
+  const [linked, setLinked] = useState(() => driveSync.linked());
+  const [needsChoice, setNeedsChoice] = useState(() => driveSync.linked() && !driveSync.ready());
+  const [auto, setAuto] = useState({
+    busy: false,
+    error: null,
+    last: null
+  });
+  useEffect(() => driveSync.subscribe(setAuto), []);
   const driveConnect = async () => {
+    const url = relayInput.trim();
+    const bad = relayLinkProblem(url);
+    if (bad) {
+      note('err', bad);
+      return;
+    }
     setBusy(true);
     try {
-      await driveToken(DRIVE_CLIENT_ID, true);
-      setSettings(s => ({
-        ...s,
-        driveConnected: true
-      }));
-      note('ok', 'Connected to Google Drive. Tap Sync to Drive to back up.');
+      const j = await relayCall({
+        action: 'ping',
+        name: 'receipts.json'
+      }, url);
+      lsSet(RELAY_URL_KEY, url);
+      setLinked(true);
+      setRelayInput('');
+      if (driveSync.ready() || !j.file) {
+        driveSync.setReady();
+        setNeedsChoice(false);
+        await driveSync.run(true);
+        note('ok', `Linked. Receipts now keeps "${j.folder}" up to date on its own.`);
+      } else {
+        setNeedsChoice(true);
+        note('ok', `Linked. Drive already has a backup from ${new Date(j.file.modifiedTime).toLocaleString('en-AU')}. Restore it to this phone, or tap Sync to add this phone's receipts to it. Auto-sync starts after either.`);
+      }
     } catch (e) {
       note('err', e.message);
     } finally {
@@ -5233,18 +5433,11 @@ function Settings({
     }
   };
   const driveDisconnect = () => {
-    try {
-      sessionStorage.removeItem('receipts_gtoken');
-    } catch (_) {}
-    gis.token = null;
-    gis.exp = 0;
-    setSettings(s => ({
-      ...s,
-      driveConnected: false,
-      driveFolderId: ''
-    }));
+    driveSync.unlink();
+    setLinked(false);
+    setNeedsChoice(false);
     setConfirmRestore(false);
-    note('ok', 'Disconnected. Your Drive files are untouched.');
+    note('ok', 'Unlinked on this phone (Macro too, they share the link). Your Drive files are untouched.');
   };
   useEffect(() => {
     if (!armed) return;
@@ -5338,66 +5531,12 @@ function Settings({
     await reload();
     setArmed(null);
   };
-  const driveSync = async () => {
+  const driveSyncNow = async () => {
     setBusy(true);
     try {
-      const token = await driveToken(DRIVE_CLIENT_ID, true);
-      const folder = await driveFolder(token);
-      const files = await driveList(token, folder);
-      const byName = {},
-        byId = {};
-      files.forEach(f => {
-        byName[f.name] = f;
-        const id = idFromFileName(f.name);
-        if (id) byId[id] = f;
-      });
-      let up = 0,
-        renamed = 0;
-      for (const r of receipts) for (const [i, pid] of (r.pages || []).entries()) {
-        const want = pageFileName(r, i, pid);
-        const have = byId[pid];
-        if (have) {
-          if (have.name !== want) {
-            await dfetch(token, `https://www.googleapis.com/drive/v3/files/${have.id}`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                name: want
-              })
-            });
-            renamed++;
-          }
-          continue;
-        }
-        const blob = await dbGetImageBlob(pid);
-        if (!blob) continue;
-        await driveUpload(token, folder, want, blob);
-        up++;
-      }
-      const manifest = new Blob([JSON.stringify({
-        app: 'Receipts',
-        build: BUILD_VERSION,
-        exportedAt: new Date().toISOString(),
-        categories: settings.categories,
-        tags: settings.tags,
-        notDuplicates: settings.notDuplicates || [],
-        receipts: receipts.map(r => ({
-          ...r,
-          thumb: undefined
-        }))
-      })], {
-        type: 'application/json'
-      });
-      await driveUpload(token, folder, 'receipts.json', manifest, byName['receipts.json'] && byName['receipts.json'].id);
-      setSettings(s => ({
-        ...s,
-        driveConnected: true,
-        driveFolderId: folder,
-        lastSync: new Date().toISOString()
-      }));
-      note('ok', `Synced to Drive. ${up} new image${up === 1 ? '' : 's'} uploaded${renamed ? `, ${renamed} renamed` : ''}.`);
+      const r = await driveSync.run(true);
+      setNeedsChoice(false);
+      note('ok', r ? `Synced to Drive. ${r.up} new image${r.up === 1 ? '' : 's'} uploaded${r.renamed ? `, ${r.renamed} renamed` : ''}.` : 'Synced to Drive.');
     } catch (e) {
       note('err', 'Drive sync failed: ' + e.message);
     } finally {
@@ -5408,51 +5547,19 @@ function Settings({
     setConfirmRestore(false);
     setBusy(true);
     try {
-      const token = await driveToken(DRIVE_CLIENT_ID, true);
-      const folder = await driveFolder(token);
-      const files = await driveList(token, folder);
-      const mf = files.find(f => f.name === 'receipts.json');
-      if (!mf) throw new Error('No receipts.json in the Drive folder yet.');
-      const manifest = JSON.parse(await (await driveDownload(token, mf.id)).text());
-      const byId = {};
-      files.forEach(f => {
-        const id = idFromFileName(f.name);
-        if (id) byId[id] = f;
-      });
-      let added = 0,
-        imgs = 0;
-      for (const r of manifest.receipts || []) {
-        for (const pid of r.pages || []) {
-          if (await dbGet('images', pid)) continue;
-          const f = byId[pid];
-          if (!f) continue;
-          await dbPut('images', {
-            id: pid,
-            blob: await normalisePageBlob(await driveDownload(token, f.id))
-          });
-          imgs++;
-        }
-        const cur = receipts.find(x => x.id === r.id);
-        if (cur && (cur.updatedAt || '') >= (r.updatedAt || '')) continue;
-        let thumb = null;
-        if (r.pages && r.pages[0]) {
-          const b = await dbGetImageBlob(r.pages[0]);
-          if (b) thumb = await makeThumb(b);
-        }
-        await dbPut('receipts', {
-          ...r,
-          thumb
-        });
-        added++;
-      }
+      const {
+        manifest,
+        added,
+        imgs
+      } = await relayRestore(receipts);
       setSettings(s => ({
         ...s,
-        driveConnected: true,
-        driveFolderId: folder,
         categories: Array.from(new Set([...s.categories, ...(manifest.categories || [])])),
         tags: Array.from(new Set([...s.tags, ...(manifest.tags || [])])),
         notDuplicates: Array.from(new Set([...(s.notDuplicates || []), ...(manifest.notDuplicates || [])]))
       }));
+      driveSync.setReady();
+      setNeedsChoice(false);
       await reload();
       note('ok', `Restored ${added} receipt${added === 1 ? '' : 's'} and ${imgs} image${imgs === 1 ? '' : 's'} from Drive.`);
     } catch (e) {
@@ -5724,11 +5831,25 @@ function Settings({
     }
   }, React.createElement("div", {
     className: "small muted"
-  }, "Keeps a folder called \"", DRIVE_FOLDER, "\" in My Drive with every receipt image and a receipts.json. The app can only see files it created. Sync uploads what is new. Restore pulls anything missing on this phone."), !settings.driveConnected ? React.createElement("button", {
+  }, "Keeps a folder called \"", DRIVE_FOLDER, "\" in My Drive with every receipt image and a receipts.json, updated automatically a few seconds after each change. It goes through the App Data relay, a small script in your own Google account, so there is no Google sign-in on the phone and nothing expires. The same link works in Macro. Restore pulls anything missing on this phone."), !linked ? React.createElement(React.Fragment, null, React.createElement("input", {
+    style: {
+      padding: '10px',
+      borderRadius: 8,
+      border: '1px solid var(--line)',
+      fontFamily: 'monospace',
+      fontSize: 13
+    },
+    placeholder: "Paste the relay link (\u2026/exec?k=\u2026)",
+    autoCapitalize: "off",
+    autoCorrect: "off",
+    spellCheck: false,
+    value: relayInput,
+    onChange: e => setRelayInput(e.target.value)
+  }), React.createElement("button", {
     className: "btn primary",
-    disabled: busy,
+    disabled: busy || !relayInput.trim(),
     onClick: driveConnect
-  }, "Connect Google Drive") : React.createElement(React.Fragment, null, React.createElement("div", {
+  }, "Link Google Drive")) : React.createElement(React.Fragment, null, React.createElement("div", {
     className: "row",
     style: {
       justifyContent: 'space-between'
@@ -5741,24 +5862,29 @@ function Settings({
   }, React.createElement("span", {
     className: "sync-dot",
     style: {
-      background: 'var(--green)'
+      background: auto.error ? '#B23A3A' : needsChoice ? 'var(--muted)' : 'var(--green)'
     }
-  }), "Connected"), React.createElement("button", {
+  }), auto.busy ? 'Syncing...' : needsChoice ? 'Linked, waiting for Restore or Sync' : 'Auto-sync on'), React.createElement("button", {
     className: "chip btn",
     onClick: driveDisconnect
-  }, "Disconnect")), React.createElement("div", {
+  }, "Unlink")), React.createElement("div", {
     className: "row"
   }, React.createElement("button", {
     className: "btn primary grow",
-    disabled: busy,
-    onClick: driveSync
-  }, "Sync to Drive"), React.createElement("button", {
+    disabled: busy || auto.busy,
+    onClick: driveSyncNow
+  }, "Sync now"), React.createElement("button", {
     className: 'btn grow' + (confirmRestore ? ' danger armed' : ''),
     disabled: busy,
     onClick: () => confirmRestore ? driveRestore() : setConfirmRestore(true)
-  }, confirmRestore ? 'Tap again to restore' : 'Restore from Drive')), React.createElement("div", {
+  }, confirmRestore ? 'Tap again to restore' : 'Restore from Drive')), auto.error && React.createElement("div", {
+    className: "small",
+    style: {
+      color: '#B23A3A'
+    }
+  }, "Last auto-sync failed: ", auto.error, ". It retries on the next change or when you reopen the app."), React.createElement("div", {
     className: "small muted"
-  }, settings.lastSync ? 'Last sync: ' + new Date(settings.lastSync).toLocaleString('en-AU') : 'Never synced.'))), React.createElement("div", {
+  }, auto.last || settings.lastSync ? 'Last sync: ' + new Date(auto.last || settings.lastSync).toLocaleString('en-AU') : 'Never synced.'))), React.createElement("div", {
     className: "section-h"
   }, React.createElement("span", null, "Diagnostics")), React.createElement("div", {
     className: "card"
@@ -6073,7 +6199,7 @@ function App() {
     },
     onClick: () => setShowSettings(true),
     "aria-label": "Settings"
-  }, "⚙️"))), selecting && React.createElement("div", {
+  }, "\u2699\uFE0F"))), selecting && React.createElement("div", {
     style: {
       position: 'fixed',
       left: 0,

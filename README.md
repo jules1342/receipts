@@ -1,7 +1,7 @@
 # Receipts: build, deploy, set up
 
 ## What it is
-A phone web app (PWA) that photographs receipts, straightens and cleans the image so the paper can be thrown away, reads merchant, date, total, GST and category with Claude, and files each receipt under a category plus any number of tags (sections). Data lives on the phone in IndexedDB. Backup is a zip export, or Google Drive sync once the OAuth client is set up. Hosted on GitHub Pages at https://jules1342.github.io/receipts/.
+A phone web app (PWA) that photographs receipts, straightens and cleans the image so the paper can be thrown away, reads merchant, date, total, GST and category with Claude, and files each receipt under a category plus any number of tags (sections). Data lives on the phone in IndexedDB. Backup is a zip export, or automatic Google Drive sync through the App Data relay. Hosted on GitHub Pages at https://jules1342.github.io/receipts/.
 
 ## Files
 - `receipts.html` is the only source file. Edit this.
@@ -35,11 +35,13 @@ Open the site in Chrome on Android, tap the menu, Add to Home screen, Install. I
 Settings, paste the key from console.anthropic.com. It stays in the browser storage on the phone and calls go straight to Anthropic. Extraction uses `claude-opus-5` at low effort with a JSON schema, roughly one to three cents a receipt.
 
 ## Google Drive sync
-Settings, **Connect Google Drive**. Google shows its account picker and asks to allow "See, edit, create and delete only the specific Google Drive files that you use with this app". That is the `drive.file` scope: the app can only reach files it created. After that, **Sync to Drive** uploads new images and a `receipts.json` to `My Drive/App Data/Receipts`, creating the folders if needed, and **Restore from Drive** (two taps) pulls anything missing on this phone, so a new phone can be set up from Drive. Sync is manual: tap it after a batch of receipts.
+Sync goes through the **App Data relay**, a small Google Apps Script in Julian's Google account that does the Drive work, so the phone never signs in to Google and nothing expires. The script and its setup steps live in the Macro repo (`drive-relay/Code.gs`, and the Drive section of its README). One relay serves both apps, and the link is shared between them, so linking in either app links both.
 
-There is nothing to paste. The OAuth client ID is compiled into the app, and it is the same client the Macro app uses, because both apps live on `https://jules1342.github.io` and Google authorises by origin. The client ID is public by design; the origin restriction is what protects it. If the Google Auth Platform setup in the Macro README ever needs redoing, do it once and both apps follow.
+Settings, Google Drive sync, paste the relay link, **Link Google Drive**. From then on every new or edited receipt, deleted receipt, and category or tag change is pushed about 10 seconds later: new images and a fresh `receipts.json` in `My Drive/App Data/Receipts`. **Sync now** forces a push. **Restore from Drive** (two taps) pulls anything missing on this phone, so a new phone can be set up from Drive. A new phone that has never synced does not auto-push until you restore or sync once, so it cannot overwrite the Drive copy with a near-empty list.
 
-Note: the Drive round trip has not been exercised from the build machine. It needs Julian's Google account and the live URL, so the first run on the phone is the real test.
+Why not the old in-app Google sign-in: a browser-only app can keep a Drive token for an hour at most and needs a tap on a Google pop-up for another, so it could not sync in the background and asked for sign-in after every restart.
+
+Tested against a mock of the relay (link, first upload, auto-push after a change, restore with images on a fresh phone). The live script needs Julian's account, so the first run on the phone is the real test.
 
 ## Export and import
 Settings, Export everything (zip). On the phone the share sheet opens, so you can send the zip straight to Google Drive, email, or Files. The zip holds `receipts.json`, `receipts.csv`, and `images/`. Import accepts that zip, a bare `receipts.json`, or the `App Data/Receipts` folder downloaded from Google Drive as a zip, and merges by receipt id, keeping the newer copy. Images are named `date item merchant total pN [pageid].jpg`; the id in brackets is what import and restore match on, so the rest of the name can be anything.
